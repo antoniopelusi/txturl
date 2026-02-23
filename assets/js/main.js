@@ -257,7 +257,7 @@ editor.addEventListener("paste", (e) => {
     pasteLines(
         e.clipboardData
             .getData("text/plain")
-            .replace(/\r/g, "")
+            .replace(/\r\n?/g, "\n")
             .replace(/\t/g, "    ")
             .split("\n"),
     );
@@ -272,7 +272,7 @@ window.addEventListener("beforeprint", async (e) => {
 const hash = window.location.hash.slice(1);
 if (hash) {
     decompress(hash).then((text) => {
-        editor.innerHTML = buildHtml(text.replace(/\r/g, "").split("\n"));
+        editor.innerHTML = buildHtml(text.replace(/\r\n?/g, "\n").split("\n"));
         mdRender(editor);
         undoStack[0] = {
             html: editor.innerHTML,
@@ -311,7 +311,8 @@ document.getElementById("btn-share").addEventListener("click", async () => {
     } else {
         showToast("Copy from address bar.", "info");
     }
-    if (navigator.share) navigator.share({ url: location.href });
+    if (navigator.share)
+        navigator.share({ url: location.href }).catch(() => {});
 });
 
 document.getElementById("btn-qr").addEventListener("click", async () => {
