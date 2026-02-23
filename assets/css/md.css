@@ -1,0 +1,60 @@
+.md-h1 {
+    font-size: 1.8em;
+    font-weight: 700;
+}
+
+.md-h2 {
+    font-size: 1.5em;
+    font-weight: 700;
+}
+
+.md-h3 {
+    font-size: 1.3em;
+    font-weight: 700;
+}
+
+.md-h4 {
+    font-size: 1.1em;
+    font-weight: 700;
+}
+
+.md-h5 {
+    font-size: 1em;
+    font-weight: 700;
+}
+
+.md-h6 {
+    font-size: 0.9em;
+    font-weight: 700;
+}
+
+.md-quote {
+    box-shadow: inset 2px 0 0 currentColor;
+    padding-left: 0.6em;
+    color: color-mix(in srgb, var(--text) 70%, transparent);
+}
+
+.md-code {
+    font-family: "Roboto Mono Local";
+    color: color-mix(in srgb, var(--text) 70%, transparent);
+}
+
+.md-li,
+.md-oli {
+    padding-left: 1.2em;
+}
+
+.md-hr {
+    position: relative;
+    color: transparent;
+    caret-color: var(--text);
+}
+.md-hr::after {
+    content: "";
+    position: absolute;
+    opacity: 0.3;
+    top: 50%;
+    left: 0;
+    right: 0;
+    border-top: 3px solid color-mix(in srgb, var(--text) 70%, transparent);
+}

@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>TxtUrl</title>
+        <meta
+            name="description"
+            content="A minimalist text editor fully embedded in the URL, with content encoded in the query string and no backend dependency."
+        />
+        <meta name="author" content="Antonio Pelusi" />
+        <link rel="canonical" href="https://antoniopelusi.github.io/txturl" />
+        <meta property="og:title" content="TxtUrl" />
+        <meta
+            property="og:description"
+            content="A minimalist text editor fully embedded in the URL, with content encoded in the query string and no backend dependency."
+        />
+        <meta property="og:type" content="website" />
+        <meta
+            property="og:url"
+            content="https://antoniopelusi.github.io/txturl"
+        />
+        <link
+            rel="icon"
+            type="image/png"
+            href="./assets/icons/favicon/favicon-96x96.png"
+            sizes="96x96"
+        />
+        <link
+            rel="icon"
+            type="image/svg+xml"
+            href="./assets/icons/favicon/favicon.svg"
+        />
+        <link rel="shortcut icon" href="./assets/icons/favicon/favicon.ico" />
+        <link
+            rel="apple-touch-icon"
+            sizes="180x180"
+            href="./assets/icons/favicon/apple-touch-icon.png"
+        />
+        <meta name="apple-mobile-web-app-title" content="TxtUrl" />
+        <link rel="manifest" href="./assets/icons/favicon/site.webmanifest" />
+        <link rel="stylesheet" href="./assets/css/fonts.css" />
+        <link rel="stylesheet" href="./assets/css/md.css" />
+        <link rel="stylesheet" href="./assets/css/main.css" />
+        <script src="./assets/js/qrcode.js" defer></script>
+        <script src="./assets/js/md.js" defer></script>
+        <script src="./assets/js/main.js" defer></script>
+    </head>
+    <body>
+        <a id="print-url" href="">
+            <img src="./assets/icons/link.svg" />
+            Edit the document
+        </a>
+        <header>
+            <span>
+                <img src="./assets/icons/link.svg" alt="TxtUrl logo" />
+                <h1>TxtUrl</h1>
+            </span>
+            <div>
+                <button id="btn-trash" aria-label="Clear editor">
+                    <img src="./assets/icons/trash.svg" alt="" />
+                </button>
+                <button id="btn-download" aria-label="Download as file">
+                    <img src="./assets/icons/download.svg" alt="" />
+                </button>
+                <button id="btn-print" aria-label="Print file">
+                    <img src="./assets/icons/print.svg" alt="" />
+                </button>
+                <button id="btn-share" aria-label="Copy share link">
+                    <img src="./assets/icons/share.svg" alt="" />
+                </button>
+                <button id="btn-qr" aria-label="Show QR code">
+                    <img src="./assets/icons/qr.svg" alt="" />
+                </button>
+            </div>
+        </header>
+        <div
+            id="editor"
+            contenteditable="true"
+            spellcheck="false"
+            role="textbox"
+            aria-multiline="true"
+            aria-label="Text editor"
+        >
+            <div><br /></div>
+        </div>
+        <footer>
+            <a
+                href="https://antoniopelusi.github.io"
+                target="_blank"
+                rel="noopener noreferrer"
+            >
+                <small>© Antonio Pelusi. All rights reserved.</small>
+            </a>
+            <a
+                href="https://github.com/antoniopelusi/txturl"
+                target="_blank"
+                rel="noopener noreferrer"
+            >
+                <small>Source code</small>
+                <img src="./assets/icons/github.svg" alt="GitHub" />
+            </a>
+        </footer>
+        <div id="toast" role="status" aria-live="polite"></div>
+        <div
+            id="qr-overlay"
+            role="dialog"
+            aria-modal="true"
+            aria-label="QR code"
+        >
+            <div id="qr-modal">
+                <div id="qr-container"></div>
+                <button id="qr-close" aria-label="Close QR code">
+                    <img src="./assets/icons/xmark.svg" alt="" />
+                    <span>close</span>
+                </button>
+            </div>
+        </div>
+    </body>
+</html>
