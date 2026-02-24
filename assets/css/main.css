@@ -220,7 +220,7 @@ footer a img {
 #qr-container svg {
     width: 100%;
     height: 100%;
-    border: solid 1em black;
+    border: solid 1em white;
     border-radius: 1em;
 }
 
