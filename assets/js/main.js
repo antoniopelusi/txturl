@@ -200,6 +200,25 @@ editor.addEventListener("keydown", (e) => {
     const ctrl = e.ctrlKey || e.metaKey;
     const key = e.key.toLowerCase();
 
+    if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+        const sel = window.getSelection();
+        if (sel.rangeCount && !sel.getRangeAt(0).collapsed) {
+            requestAnimationFrame(() => {
+                if (!editor.children.length) return;
+
+                if (e.key === "ArrowLeft") {
+                    restoreCursor({ divIdx: 0, offset: 0 });
+                } else {
+                    const last = editor.children.length - 1;
+                    restoreCursor({
+                        divIdx: last,
+                        offset: editor.children[last].textContent.length,
+                    });
+                }
+            });
+        }
+    }
+
     if (ctrl && key === "z" && !e.shiftKey) {
         e.preventDefault();
         applyUndo();
