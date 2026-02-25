@@ -29,14 +29,14 @@
 }
 
 .md-quote {
-    box-shadow: inset 2px 0 0 currentColor;
-    padding-left: 0.6em;
-    color: color-mix(in srgb, var(--text) 70%, transparent);
+    padding-left: 0.3em;
+    border-left: solid 3px color-mix(in srgb, var(--text) 30%, var(--bg));
+    color: color-mix(in srgb, var(--text) 70%, var(--bg));
 }
 
 .md-code {
     font-family: "Roboto Mono Local";
-    color: color-mix(in srgb, var(--text) 70%, transparent);
+    color: color-mix(in srgb, var(--text) 70%, var(--bg));
 }
 
 .md-li,
@@ -49,6 +49,7 @@
     color: transparent;
     caret-color: var(--text);
 }
+
 .md-hr::after {
     content: "";
     position: absolute;
@@ -56,5 +57,5 @@
     top: 50%;
     left: 0;
     right: 0;
-    border-top: 3px solid color-mix(in srgb, var(--text) 70%, transparent);
+    border-top: 3px solid color-mix(in srgb, var(--text) 70%, var(--bg));
 }
