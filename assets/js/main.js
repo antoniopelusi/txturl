@@ -21,34 +21,30 @@ async function decompress(b64) {
     );
 }
 
-// --- DOM refs ---
-function mdRender(el) {
-    const classMap = [
-        [/^###### /, "md-h6"],
-        [/^##### /, "md-h5"],
-        [/^#### /, "md-h4"],
-        [/^### /, "md-h3"],
-        [/^## /, "md-h2"],
-        [/^# /, "md-h1"],
-        [/^> /, "md-quote"],
-        [/^[-*] /, "md-li"],
-        [/^\d+\. /, "md-oli"],
-        [/^-{3,}$/, "md-hr"],
-    ];
+// --- Markdown ---
+const MD_CLASS_MAP = [
+    [/^###### /, "md-h6"],
+    [/^##### /, "md-h5"],
+    [/^#### /, "md-h4"],
+    [/^### /, "md-h3"],
+    [/^## /, "md-h2"],
+    [/^# /, "md-h1"],
+    [/^> /, "md-quote"],
+    [/^[-*] /, "md-li"],
+    [/^\d+\. /, "md-oli"],
+    [/^-{3,}$/, "md-hr"],
+];
 
+function mdRender(el) {
     let inCode = false;
     for (const div of el.children) {
         const line = div.textContent;
-        if (/^`{3}/.test(line)) {
-            inCode = !inCode;
-            if (div.className !== "md-code") div.className = "md-code";
-            continue;
-        }
-        if (inCode) {
-            if (div.className !== "md-code") div.className = "md-code";
-            continue;
-        }
-        const cls = classMap.find(([re]) => re.test(line))?.[1] ?? "md-p";
+        const isDelimiter = /^`{3}/.test(line);
+        if (isDelimiter) inCode = !inCode;
+        const cls =
+            inCode || isDelimiter
+                ? "md-code"
+                : (MD_CLASS_MAP.find(([re]) => re.test(line))?.[1] ?? "md-p");
         if (div.className !== cls) div.className = cls;
     }
 }
@@ -58,21 +54,13 @@ const editor = document.getElementById("editor");
 const qrContainer = document.getElementById("qr-container");
 const qrOverlay = document.getElementById("qr-overlay");
 const toast = document.getElementById("toast");
+const printUrl = document.getElementById("print-url");
 
 // --- Utilities ---
-function updatePrintUrl() {
-    const el = document.getElementById("print-url");
-    el.href = location.href;
-}
-
-async function printPage() {
-    await saveToHash();
-    updatePrintUrl();
-    window.print();
-}
+const EMPTY_HTML = "<div><br></div>";
 
 function getRawText() {
-    return [...editor.children].map((d) => d.textContent).join("\n");
+    return Array.from(editor.children, (d) => d.textContent).join("\n");
 }
 
 function escapeHtml(str) {
@@ -88,14 +76,19 @@ function buildHtml(lines) {
         .join("");
 }
 
+function ancestorDiv(node) {
+    while (node && node.parentNode !== editor) node = node.parentNode;
+    return node ?? null;
+}
+
 async function saveToHash() {
     const text = getRawText();
     history.replaceState(
         null,
         "",
-        text.trim() ? "#" + (await compress(text)) : window.location.pathname,
+        text.trim() ? "#" + (await compress(text)) : location.pathname,
     );
-    updatePrintUrl();
+    printUrl.href = location.href;
 }
 
 function showToast(msg, type) {
@@ -116,10 +109,12 @@ function saveCursor() {
     const sel = window.getSelection();
     if (!sel.rangeCount) return { divIdx: 0, offset: 0 };
     const range = sel.getRangeAt(0);
-    let node = range.startContainer;
-    while (node && node.parentNode !== editor) node = node.parentNode;
+    const node = ancestorDiv(range.startContainer);
     return {
-        divIdx: Math.max(0, [...editor.children].indexOf(node)),
+        divIdx: Math.max(
+            0,
+            Array.prototype.indexOf.call(editor.children, node),
+        ),
         offset:
             range.startContainer.nodeType === Node.TEXT_NODE
                 ? range.startOffset
@@ -128,7 +123,7 @@ function saveCursor() {
 }
 
 function restoreCursor({ divIdx, offset }) {
-    const div = editor.children[divIdx] || editor.lastChild;
+    const div = editor.children[divIdx] ?? editor.lastChild;
     if (!div) return;
     const r = document.createRange();
     if (div.firstChild?.nodeType === Node.TEXT_NODE) {
@@ -143,15 +138,17 @@ function restoreCursor({ divIdx, offset }) {
     editor.focus();
 }
 
-// --- Undo/Redo ---
+// --- Undo / Redo ---
+const UNDO_LIMIT = 200;
 const undoStack = [
-    { html: "<div><br></div>", cursor: { divIdx: 0, offset: 0 } },
+    { html: editor.innerHTML, cursor: { divIdx: 0, offset: 0 } },
 ];
 const redoStack = [];
 
 function pushUndo() {
     const html = editor.innerHTML;
     if (undoStack.at(-1)?.html === html) return;
+    if (undoStack.length >= UNDO_LIMIT) undoStack.shift();
     undoStack.push({ html, cursor: saveCursor() });
     redoStack.length = 0;
 }
@@ -175,8 +172,9 @@ function applyRedo() {
     applySnap(undoStack.at(-1));
 }
 
-// --- Schedule ---
-let undoTimer, saveTimer;
+// --- Scheduling ---
+let undoTimer = null;
+let saveTimer = null;
 
 function scheduleCommit() {
     clearTimeout(undoTimer);
@@ -188,26 +186,23 @@ function scheduleSave() {
     saveTimer = setTimeout(saveToHash, 300);
 }
 
-// --- Paste helper ---
+// --- Paste ---
 function pasteLines(lines) {
     const sel = window.getSelection();
     if (!sel.rangeCount) return;
-    sel.deleteFromDocument();
+
     const range = sel.getRangeAt(0);
+    const startContainer = range.startContainer;
+    const startOffset = range.startOffset;
+    sel.deleteFromDocument();
 
-    let currentDiv = range.startContainer;
-    while (currentDiv && currentDiv.parentNode !== editor)
-        currentDiv = currentDiv.parentNode;
-
-    const divs = [...editor.children];
+    const currentDiv = ancestorDiv(startContainer);
+    const divs = Array.from(editor.children);
     const idx = Math.max(
         0,
         currentDiv ? divs.indexOf(currentDiv) : divs.length - 1,
     );
-    const offset =
-        range.startContainer.nodeType === Node.TEXT_NODE
-            ? range.startOffset
-            : 0;
+    const offset = startContainer.nodeType === Node.TEXT_NODE ? startOffset : 0;
     const before = (currentDiv?.textContent ?? "").slice(0, offset);
     const after = (currentDiv?.textContent ?? "").slice(offset);
 
@@ -216,11 +211,11 @@ function pasteLines(lines) {
     newLines[newLines.length - 1] += after;
     divs.slice(idx + 1).forEach((d) => newLines.push(d.textContent));
 
-    const cursorDivIndex = idx + lines.length - 1;
+    const cursorIdx = idx + lines.length - 1;
     editor.innerHTML = buildHtml(newLines);
     restoreCursor({
-        divIdx: cursorDivIndex,
-        offset: newLines[cursorDivIndex].length - after.length,
+        divIdx: cursorIdx,
+        offset: newLines[cursorIdx].length - after.length,
     });
     mdRender(editor);
     scheduleCommit();
@@ -237,7 +232,6 @@ editor.addEventListener("keydown", (e) => {
         if (sel.rangeCount && !sel.getRangeAt(0).collapsed) {
             requestAnimationFrame(() => {
                 if (!editor.children.length) return;
-
                 if (e.key === "ArrowLeft") {
                     restoreCursor({ divIdx: 0, offset: 0 });
                 } else {
@@ -249,6 +243,7 @@ editor.addEventListener("keydown", (e) => {
                 }
             });
         }
+        return;
     }
 
     if (ctrl && key === "z" && !e.shiftKey) {
@@ -261,6 +256,7 @@ editor.addEventListener("keydown", (e) => {
         applyRedo();
         return;
     }
+
     if (e.key === "Tab") {
         e.preventDefault();
         pasteLines(["    "]);
@@ -286,7 +282,7 @@ editor.addEventListener("keydown", (e) => {
 
 editor.addEventListener("input", () => {
     requestAnimationFrame(() => {
-        [...editor.childNodes].forEach((node) => {
+        Array.from(editor.childNodes).forEach((node) => {
             if (node.nodeType !== Node.ELEMENT_NODE || node.nodeName !== "DIV")
                 editor.removeChild(node);
         });
@@ -294,13 +290,13 @@ editor.addEventListener("input", () => {
             !editor.children.length ||
             (editor.children.length === 1 && !editor.firstChild.textContent)
         ) {
-            editor.innerHTML = "<div><br></div>";
+            editor.innerHTML = EMPTY_HTML;
             restoreCursor({ divIdx: 0, offset: 0 });
         }
         mdRender(editor);
+        scheduleCommit();
+        scheduleSave();
     });
-    scheduleCommit();
-    scheduleSave();
 });
 
 editor.addEventListener("paste", (e) => {
@@ -314,13 +310,10 @@ editor.addEventListener("paste", (e) => {
     );
 });
 
-window.addEventListener("beforeprint", async (e) => {
-    await saveToHash();
-    updatePrintUrl();
-});
+window.addEventListener("beforeprint", () => saveToHash());
 
 // --- Load from hash ---
-const hash = window.location.hash.slice(1);
+const hash = location.hash.slice(1);
 if (hash) {
     decompress(hash).then((text) => {
         editor.innerHTML = buildHtml(text.replace(/\r\n?/g, "\n").split("\n"));
@@ -329,7 +322,11 @@ if (hash) {
             html: editor.innerHTML,
             cursor: { divIdx: 0, offset: 0 },
         };
-        restoreCursor({ divIdx: editor.children.length - 1, offset: Infinity });
+        const last = editor.children.length - 1;
+        restoreCursor({
+            divIdx: last,
+            offset: editor.children[last].textContent.length,
+        });
     });
 } else {
     editor.focus();
@@ -337,7 +334,7 @@ if (hash) {
 
 // --- Buttons ---
 document.getElementById("btn-trash").addEventListener("click", () => {
-    editor.innerHTML = "<div><br></div>";
+    editor.innerHTML = EMPTY_HTML;
     scheduleCommit();
     scheduleSave();
     editor.focus();
@@ -352,6 +349,11 @@ document.getElementById("btn-download").addEventListener("click", () => {
     });
     a.click();
     URL.revokeObjectURL(a.href);
+});
+
+document.getElementById("btn-print").addEventListener("click", async () => {
+    await saveToHash();
+    window.print();
 });
 
 document.getElementById("btn-share").addEventListener("click", async () => {
@@ -374,32 +376,30 @@ document.getElementById("btn-qr").addEventListener("click", async () => {
         qr.make();
         qrContainer.innerHTML = qr.createSvgTag({ cellSize: 8, margin: 0 });
         qrOverlay.classList.add("open");
-    } catch (e) {
+    } catch {
         showToast("Text too long for QR code.", "error");
     }
 });
 
-document.getElementById("btn-print").addEventListener("click", printPage);
-
 document.getElementById("qr-download").addEventListener("click", () => {
     const svg = qrContainer.querySelector("svg");
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
+    const url = URL.createObjectURL(
+        new Blob([new XMLSerializer().serializeToString(svg)], {
+            type: "image/svg+xml;charset=utf-8",
+        }),
+    );
     const img = new Image();
-    const svgData = new XMLSerializer().serializeToString(svg);
-    const svgBlob = new Blob([svgData], {
-        type: "image/svg+xml;charset=utf-8",
-    });
-    const url = URL.createObjectURL(svgBlob);
-
     img.onload = () => {
-        canvas.width = img.width;
-        canvas.height = img.height;
-        ctx.drawImage(img, 0, 0);
+        const canvas = Object.assign(document.createElement("canvas"), {
+            width: img.width,
+            height: img.height,
+        });
+        canvas.getContext("2d").drawImage(img, 0, 0);
         canvas.toBlob((blob) => {
-            const a = document.createElement("a");
-            a.href = URL.createObjectURL(blob);
-            a.download = "qrcode.png";
+            const a = Object.assign(document.createElement("a"), {
+                href: URL.createObjectURL(blob),
+                download: "qrcode.png",
+            });
             a.click();
             URL.revokeObjectURL(a.href);
             URL.revokeObjectURL(url);
@@ -415,5 +415,3 @@ qrOverlay.addEventListener("click", (e) => {
 document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") closeQr();
 });
-
-document.addEventListener("DOMContentLoaded", updatePrintUrl);

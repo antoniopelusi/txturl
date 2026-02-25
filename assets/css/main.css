@@ -25,7 +25,10 @@
 :root {
     --bg: #111828;
     --text: #a2afc1;
-    --editor-bg: #00000050;
+    --text-dim: #778293;
+    --text-faint: #3d4556;
+    --text-muted: #808080;
+    --editor-bg: #0c101b;
     --info: #5fc97b;
     --error: #e05c5c;
 }
@@ -67,7 +70,6 @@ body {
 
 img {
     display: block;
-    opacity: 0.8;
 }
 
 #print-url {
@@ -158,6 +160,7 @@ footer a {
     display: flex;
     align-items: center;
     gap: 0.4em;
+    text-decoration-color: var(--text-dim);
 }
 
 footer a img {
@@ -188,6 +191,7 @@ footer a img {
 #toast[data-type="info"] {
     background-color: var(--info);
 }
+
 #toast[data-type="error"] {
     background-color: var(--error);
 }
@@ -247,31 +251,27 @@ footer a img {
     border-radius: 1em;
 }
 
+/* --- Markdown --- */
 .md-h1 {
     font-size: 1.8em;
     font-weight: 700;
 }
-
 .md-h2 {
     font-size: 1.5em;
     font-weight: 700;
 }
-
 .md-h3 {
     font-size: 1.3em;
     font-weight: 700;
 }
-
 .md-h4 {
     font-size: 1.1em;
     font-weight: 700;
 }
-
 .md-h5 {
     font-size: 1em;
     font-weight: 700;
 }
-
 .md-h6 {
     font-size: 0.9em;
     font-weight: 700;
@@ -279,13 +279,13 @@ footer a img {
 
 .md-quote {
     padding-left: 0.3em;
-    border-left: solid 3px color-mix(in srgb, var(--text) 30%, var(--bg));
-    color: color-mix(in srgb, var(--text) 70%, var(--bg));
+    border-left: solid 3px var(--text-faint);
+    color: var(--text-dim);
 }
 
 .md-code {
     font-family: "Roboto Mono Local";
-    color: color-mix(in srgb, var(--text) 70%, var(--bg));
+    color: var(--text-dim);
 }
 
 .md-li,
@@ -295,7 +295,7 @@ footer a img {
 
 .md-hr {
     position: relative;
-    color: transparent;
+    color: var(--bg);
     caret-color: var(--text);
 }
 
@@ -306,10 +306,22 @@ footer a img {
     top: 50%;
     left: 0;
     right: 0;
-    border-top: 3px solid color-mix(in srgb, var(--text) 70%, var(--bg));
+    border-top: 3px solid var(--text-dim);
 }
 
+/* --- Print --- */
 @media print {
+    :root {
+        --bg: white;
+        --text: black;
+        --text-dim: #4d4d4d;
+        --text-faint: #b3b3b3;
+    }
+
+    * {
+        print-color-adjust: exact;
+    }
+
     @page {
         size: A4;
         margin: 0;
@@ -317,7 +329,8 @@ footer a img {
 
     header,
     footer,
-    title {
+    title,
+    #toast {
         display: none;
     }
 
@@ -331,8 +344,8 @@ footer a img {
     body,
     #editor,
     div {
-        background-color: white;
-        color: black;
+        background-color: var(--bg);
+        color: var(--text);
         height: auto;
         overflow: visible;
         padding: 0;
@@ -344,25 +357,12 @@ footer a img {
         padding: 1cm;
     }
 
-    .md-quote {
-        border-left: solid 4px color-mix(in srgb, black 30%, white);
-        color: color-mix(in srgb, black 70%, white);
-    }
-
-    .md-code {
-        color: color-mix(in srgb, black 70%, white);
-    }
-
-    .md-hr::after {
-        border-top: solid 3px color-mix(in srgb, black 70%, white);
-    }
-
     #print-url {
         display: flex;
+        align-self: flex-end;
         align-items: center;
-        justify-content: flex-end;
         font-size: 0.8em;
-        color: color-mix(in srgb, black 50%, white);
+        color: var(--text-muted);
         text-decoration: none;
         gap: 0.3em;
         padding-bottom: 1em;
