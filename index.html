@@ -39,11 +39,10 @@
         />
         <meta name="apple-mobile-web-app-title" content="TxtUrl" />
         <link rel="manifest" href="./assets/icons/favicon/site.webmanifest" />
-        <link rel="stylesheet" href="./assets/css/fonts.css" />
-        <link rel="stylesheet" href="./assets/css/md.css" />
+
         <link rel="stylesheet" href="./assets/css/main.css" />
+
         <script src="./assets/js/qrcode.js" defer></script>
-        <script src="./assets/js/md.js" defer></script>
         <script src="./assets/js/main.js" defer></script>
     </head>
     <body>
@@ -106,6 +105,10 @@
         >
             <div id="qr-modal">
                 <div id="qr-container"></div>
+                <button id="qr-download" aria-label="Download QR code">
+                    <img src="./assets/icons/download.svg" alt="" />
+                    <span>download</span>
+                </button>
                 <button id="qr-close" aria-label="Close QR code">
                     <img src="./assets/icons/xmark.svg" alt="" />
                     <span>close</span>

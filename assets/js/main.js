@@ -22,6 +22,38 @@ async function decompress(b64) {
 }
 
 // --- DOM refs ---
+function mdRender(el) {
+    const classMap = [
+        [/^###### /, "md-h6"],
+        [/^##### /, "md-h5"],
+        [/^#### /, "md-h4"],
+        [/^### /, "md-h3"],
+        [/^## /, "md-h2"],
+        [/^# /, "md-h1"],
+        [/^> /, "md-quote"],
+        [/^[-*] /, "md-li"],
+        [/^\d+\. /, "md-oli"],
+        [/^-{3,}$/, "md-hr"],
+    ];
+
+    let inCode = false;
+    for (const div of el.children) {
+        const line = div.textContent;
+        if (/^`{3}/.test(line)) {
+            inCode = !inCode;
+            if (div.className !== "md-code") div.className = "md-code";
+            continue;
+        }
+        if (inCode) {
+            if (div.className !== "md-code") div.className = "md-code";
+            continue;
+        }
+        const cls = classMap.find(([re]) => re.test(line))?.[1] ?? "md-p";
+        if (div.className !== cls) div.className = cls;
+    }
+}
+
+// --- DOM refs ---
 const editor = document.getElementById("editor");
 const qrContainer = document.getElementById("qr-container");
 const qrOverlay = document.getElementById("qr-overlay");
@@ -348,6 +380,33 @@ document.getElementById("btn-qr").addEventListener("click", async () => {
 });
 
 document.getElementById("btn-print").addEventListener("click", printPage);
+
+document.getElementById("qr-download").addEventListener("click", () => {
+    const svg = qrContainer.querySelector("svg");
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    const img = new Image();
+    const svgData = new XMLSerializer().serializeToString(svg);
+    const svgBlob = new Blob([svgData], {
+        type: "image/svg+xml;charset=utf-8",
+    });
+    const url = URL.createObjectURL(svgBlob);
+
+    img.onload = () => {
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.drawImage(img, 0, 0);
+        canvas.toBlob((blob) => {
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = "qrcode.png";
+            a.click();
+            URL.revokeObjectURL(a.href);
+            URL.revokeObjectURL(url);
+        });
+    };
+    img.src = url;
+});
 
 document.getElementById("qr-close").addEventListener("click", closeQr);
 qrOverlay.addEventListener("click", (e) => {

@@ -1,3 +1,27 @@
+@font-face {
+    font-family: "Roboto Local";
+    src: url("../fonts/Roboto-Regular.woff2") format("woff2");
+    font-weight: 400;
+    font-style: normal;
+    font-display: block;
+}
+
+@font-face {
+    font-family: "Roboto Local";
+    src: url("../fonts/Roboto-Bold.woff2") format("woff2");
+    font-weight: 700;
+    font-style: normal;
+    font-display: block;
+}
+
+@font-face {
+    font-family: "Roboto Mono Local";
+    src: url("../fonts/RobotoMono-Regular.ttf") format("truetype");
+    font-weight: 400;
+    font-style: normal;
+    font-display: block;
+}
+
 :root {
     --bg: #111828;
     --text: #a2afc1;
@@ -221,6 +245,68 @@ footer a img {
     height: 100%;
     border: solid 1em white;
     border-radius: 1em;
+}
+
+.md-h1 {
+    font-size: 1.8em;
+    font-weight: 700;
+}
+
+.md-h2 {
+    font-size: 1.5em;
+    font-weight: 700;
+}
+
+.md-h3 {
+    font-size: 1.3em;
+    font-weight: 700;
+}
+
+.md-h4 {
+    font-size: 1.1em;
+    font-weight: 700;
+}
+
+.md-h5 {
+    font-size: 1em;
+    font-weight: 700;
+}
+
+.md-h6 {
+    font-size: 0.9em;
+    font-weight: 700;
+}
+
+.md-quote {
+    padding-left: 0.3em;
+    border-left: solid 3px color-mix(in srgb, var(--text) 30%, var(--bg));
+    color: color-mix(in srgb, var(--text) 70%, var(--bg));
+}
+
+.md-code {
+    font-family: "Roboto Mono Local";
+    color: color-mix(in srgb, var(--text) 70%, var(--bg));
+}
+
+.md-li,
+.md-oli {
+    padding-left: 1.2em;
+}
+
+.md-hr {
+    position: relative;
+    color: transparent;
+    caret-color: var(--text);
+}
+
+.md-hr::after {
+    content: "";
+    position: absolute;
+    opacity: 0.3;
+    top: 50%;
+    left: 0;
+    right: 0;
+    border-top: 3px solid color-mix(in srgb, var(--text) 70%, var(--bg));
 }
 
 @media print {
