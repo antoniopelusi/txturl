@@ -422,3 +422,9 @@ qrOverlay.addEventListener("click", (e) => {
 document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") closeQr();
 });
+
+if ("serviceWorker" in navigator) {
+    const basePath = window.location.pathname.replace(/\/[^/]*$/, "/");
+    const swPath = basePath + "service-worker.js";
+    navigator.serviceWorker.register(swPath);
+}
