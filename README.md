@@ -38,7 +38,3 @@ Normal text
 inline code
 ```
 ````
-
-## License
-
-© Antonio Pelusi. All rights reserved.
