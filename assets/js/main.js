@@ -190,12 +190,21 @@ function scheduleSave() {
 function pasteLines(lines) {
     const sel = window.getSelection();
     if (!sel.rangeCount) return;
-
     const range = sel.getRangeAt(0);
-    const startContainer = range.startContainer;
-    const startOffset = range.startOffset;
-    sel.deleteFromDocument();
+    let startContainer = range.startContainer;
+    let startOffset = range.startOffset;
 
+    if (startContainer === editor) {
+        const child =
+            editor.children[Math.min(startOffset, editor.children.length - 1)];
+        if (child) {
+            const textNode = child.firstChild;
+            startContainer = textNode ?? child;
+            startOffset = textNode ? textNode.length : 0;
+        }
+    }
+
+    sel.deleteFromDocument();
     const currentDiv = ancestorDiv(startContainer);
     const divs = Array.from(editor.children);
     const idx = Math.max(
@@ -205,12 +214,10 @@ function pasteLines(lines) {
     const offset = startContainer.nodeType === Node.TEXT_NODE ? startOffset : 0;
     const before = (currentDiv?.textContent ?? "").slice(0, offset);
     const after = (currentDiv?.textContent ?? "").slice(offset);
-
     const newLines = divs.slice(0, idx).map((d) => d.textContent);
     lines.forEach((line, i) => newLines.push(i === 0 ? before + line : line));
     newLines[newLines.length - 1] += after;
     divs.slice(idx + 1).forEach((d) => newLines.push(d.textContent));
-
     const cursorIdx = idx + lines.length - 1;
     editor.innerHTML = buildHtml(newLines);
     restoreCursor({
