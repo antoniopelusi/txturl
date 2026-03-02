@@ -41,10 +41,14 @@ function mdRender(el) {
         const line = div.textContent;
         const isDelimiter = /^`{3}/.test(line);
         if (isDelimiter) inCode = !inCode;
-        const cls =
-            inCode || isDelimiter
-                ? "md-code"
-                : (MD_CLASS_MAP.find(([re]) => re.test(line))?.[1] ?? "md-p");
+        let cls;
+        if (isDelimiter) {
+            cls = "md-code-delim";
+        } else if (inCode) {
+            cls = "md-code";
+        } else {
+            cls = MD_CLASS_MAP.find(([re]) => re.test(line))?.[1] ?? "md-p";
+        }
         if (div.className !== cls) div.className = cls;
     }
 }
@@ -96,7 +100,7 @@ function showToast(msg, type) {
     toast.dataset.type = type;
     toast.classList.add("show");
     clearTimeout(toast._t);
-    toast._t = setTimeout(() => toast.classList.remove("show"), 3000);
+    toast._t = setTimeout(() => toast.classList.remove("show"), 2000);
 }
 
 function closeQr() {
@@ -157,7 +161,6 @@ function applySnap(snap) {
     editor.innerHTML = snap.html;
     mdRender(editor);
     restoreCursor(snap.cursor);
-    scheduleSave();
 }
 
 function applyUndo() {
@@ -174,16 +177,10 @@ function applyRedo() {
 
 // --- Scheduling ---
 let undoTimer = null;
-let saveTimer = null;
 
 function scheduleCommit() {
     clearTimeout(undoTimer);
     undoTimer = setTimeout(pushUndo, 300);
-}
-
-function scheduleSave() {
-    clearTimeout(saveTimer);
-    saveTimer = setTimeout(saveToHash, 300);
 }
 
 // --- Paste ---
@@ -226,7 +223,6 @@ function pasteLines(lines) {
     });
     mdRender(editor);
     scheduleCommit();
-    scheduleSave();
 }
 
 // --- Editor events ---
@@ -302,7 +298,6 @@ editor.addEventListener("input", () => {
         }
         mdRender(editor);
         scheduleCommit();
-        scheduleSave();
     });
 });
 
@@ -340,14 +335,19 @@ if (hash) {
 }
 
 // --- Buttons ---
+document.getElementById("btn-save").addEventListener("click", async () => {
+    await saveToHash();
+    showToast("File saved", "info");
+});
+
 document.getElementById("btn-trash").addEventListener("click", () => {
     editor.innerHTML = EMPTY_HTML;
     scheduleCommit();
-    scheduleSave();
     editor.focus();
 });
 
-document.getElementById("btn-download").addEventListener("click", () => {
+document.getElementById("btn-download").addEventListener("click", async () => {
+    await saveToHash();
     const a = Object.assign(document.createElement("a"), {
         href: URL.createObjectURL(
             new Blob([getRawText()], { type: "text/plain" }),
@@ -421,6 +421,13 @@ qrOverlay.addEventListener("click", (e) => {
 });
 document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") closeQr();
+});
+
+document.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        document.getElementById("btn-save").click();
+    }
 });
 
 if ("serviceWorker" in navigator) {

@@ -24,6 +24,7 @@
 
 :root {
     --bg: #111828;
+    --bg-box: #121826;
     --text: #a2afc1;
     --text-dim: #778293;
     --text-faint: #3d4556;
@@ -281,9 +282,21 @@ footer a img {
     padding-left: 0.3em;
     border-left: solid 3px var(--text-faint);
     color: var(--text-dim);
+    background-color: var(--bg-box);
 }
 
 .md-code {
+    font-family: "Roboto Mono Local";
+    color: var(--text-dim);
+}
+
+.md-code {
+    font-family: "Roboto Mono Local";
+    color: var(--text-dim);
+    background-color: var(--bg-box);
+}
+
+.md-code-delim {
     font-family: "Roboto Mono Local";
     color: var(--text-dim);
 }
@@ -294,25 +307,23 @@ footer a img {
 }
 
 .md-hr {
-    position: relative;
-    color: var(--bg);
-    caret-color: var(--text);
+    display: flex;
+    align-items: center;
+    opacity: 0.3;
 }
 
 .md-hr::after {
     content: "";
-    position: absolute;
-    opacity: 0.3;
-    top: 50%;
-    left: 0;
-    right: 0;
+    flex: 1;
     border-top: 3px solid var(--text-dim);
+    margin-left: 0.2em;
 }
 
 /* --- Print --- */
 @media print {
     :root {
         --bg: white;
+        --bg-box: #f0f0f0;
         --text: black;
         --text-dim: #4d4d4d;
         --text-faint: #b3b3b3;
