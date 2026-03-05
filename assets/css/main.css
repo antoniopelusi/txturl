@@ -139,7 +139,8 @@ header button img {
     min-height: 1.4em;
     position: relative;
     white-space: pre-wrap;
-    line-height: 1.4em;
+    line-height: 0.8em;
+    padding: 0.3em;
 }
 
 /* --- Footer --- */
@@ -298,7 +299,7 @@ footer a img {
 
 .md-code-delim {
     font-family: "Roboto Mono Local";
-    color: var(--text-dim);
+    color: var(--text-faint);
 }
 
 .md-li,
@@ -353,13 +354,21 @@ footer a img {
 
     html,
     body,
-    #editor,
-    div {
+    #editor {
         background-color: var(--bg);
         color: var(--text);
         height: auto;
         overflow: visible;
         padding: 0;
+        margin: 0;
+        gap: 0;
+    }
+
+    div {
+        background-color: var(--bg);
+        color: var(--text);
+        height: auto;
+        overflow: visible;
         margin: 0;
         gap: 0;
     }
