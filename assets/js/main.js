@@ -1,56 +1,61 @@
 // --- Compression ---
 async function compress(text) {
-    const stream = new CompressionStream("deflate-raw");
-    const writer = stream.writable.getWriter();
-    writer.write(new TextEncoder().encode(text));
-    writer.close();
-    const buf = await new Response(stream.readable).arrayBuffer();
-    return btoa(
-        Array.from(new Uint8Array(buf), (b) => String.fromCharCode(b)).join(""),
-    );
+  const stream = new CompressionStream("deflate-raw");
+  const writer = stream.writable.getWriter();
+  writer.write(new TextEncoder().encode(text));
+  writer.close();
+  const buf = await new Response(stream.readable).arrayBuffer();
+  return btoa(
+    Array.from(new Uint8Array(buf), (b) => String.fromCharCode(b)).join(""),
+  )
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=/g, "");
 }
 
-async function decompress(b64) {
-    const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
-    const stream = new DecompressionStream("deflate-raw");
-    const writer = stream.writable.getWriter();
-    writer.write(bytes);
-    writer.close();
-    return new TextDecoder().decode(
-        await new Response(stream.readable).arrayBuffer(),
-    );
+async function decompress(b64url) {
+  const b64 = b64url.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = b64 + "=".repeat((4 - (b64.length % 4)) % 4);
+  const bytes = Uint8Array.from(atob(padded), (c) => c.charCodeAt(0));
+  const stream = new DecompressionStream("deflate-raw");
+  const writer = stream.writable.getWriter();
+  writer.write(bytes);
+  writer.close();
+  return new TextDecoder().decode(
+    await new Response(stream.readable).arrayBuffer(),
+  );
 }
 
 // --- Markdown ---
 const MD_CLASS_MAP = [
-    [/^###### /, "md-h6"],
-    [/^##### /, "md-h5"],
-    [/^#### /, "md-h4"],
-    [/^### /, "md-h3"],
-    [/^## /, "md-h2"],
-    [/^# /, "md-h1"],
-    [/^> /, "md-quote"],
-    [/^[-*] /, "md-li"],
-    [/^\d+\. /, "md-oli"],
-    [/^-{3,}$/, "md-hr"],
+  [/^###### /, "md-h6"],
+  [/^##### /, "md-h5"],
+  [/^#### /, "md-h4"],
+  [/^### /, "md-h3"],
+  [/^## /, "md-h2"],
+  [/^# /, "md-h1"],
+  [/^> /, "md-quote"],
+  [/^[-*] /, "md-li"],
+  [/^\d+\. /, "md-oli"],
+  [/^-{3,}$/, "md-hr"],
 ];
 
 function mdRender(el) {
-    let inCode = false;
-    for (const div of el.children) {
-        const line = div.textContent;
-        const isDelimiter = /^`{3}/.test(line);
-        if (isDelimiter) inCode = !inCode;
-        let cls;
-        if (isDelimiter) {
-            cls = "md-code-delim";
-        } else if (inCode) {
-            cls = "md-code";
-        } else {
-            cls = MD_CLASS_MAP.find(([re]) => re.test(line))?.[1] ?? "md-p";
-        }
-        if (div.className !== cls) div.className = cls;
+  let inCode = false;
+  for (const div of el.children) {
+    const line = div.textContent;
+    const isDelimiter = /^`{3}/.test(line);
+    if (isDelimiter) inCode = !inCode;
+    let cls;
+    if (isDelimiter) {
+      cls = "md-code-delim";
+    } else if (inCode) {
+      cls = "md-code";
+    } else {
+      cls = MD_CLASS_MAP.find(([re]) => re.test(line))?.[1] ?? "md-p";
     }
+    if (div.className !== cls) div.className = cls;
+  }
 }
 
 // --- DOM refs ---
@@ -62,254 +67,275 @@ const printUrl = document.getElementById("print-url");
 
 // --- Utilities ---
 const EMPTY_HTML = "<div><br></div>";
+const UNDO_LIMIT = 200;
+const URL_LIMIT = 60000;
+
+function updateUrlBar(length) {
+  const urlBar = document.getElementById("url-bar");
+  const ratio = Math.min(length / URL_LIMIT, 1);
+  urlBar.style.width = ratio * 100 + "%";
+  urlBar.style.background = length > URL_LIMIT ? "var(--error)" : "var(--text)";
+}
 
 function getRawText() {
-    return Array.from(editor.children, (d) => d.textContent).join("\n");
+  return Array.from(editor.children, (d) => d.textContent).join("\n");
 }
 
 function escapeHtml(str) {
-    return str
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;");
+  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 function buildHtml(lines) {
-    return lines
-        .map((line) => `<div>${escapeHtml(line) || "<br>"}</div>`)
-        .join("");
+  return lines
+    .map((line) => `<div>${escapeHtml(line) || "<br>"}</div>`)
+    .join("");
 }
 
 function ancestorDiv(node) {
-    while (node && node.parentNode !== editor) node = node.parentNode;
-    return node ?? null;
-}
-
-async function saveToHash() {
-    const text = getRawText();
-    history.replaceState(
-        null,
-        "",
-        text.trim() ? "#" + (await compress(text)) : location.pathname,
-    );
-    printUrl.href = location.href;
+  while (node && node.parentNode !== editor) node = node.parentNode;
+  return node ?? null;
 }
 
 function showToast(msg, type) {
-    toast.textContent = msg;
-    toast.dataset.type = type;
-    toast.classList.add("show");
-    clearTimeout(toast._t);
-    toast._t = setTimeout(() => toast.classList.remove("show"), 2000);
+  toast.textContent = msg;
+  toast.dataset.type = type;
+  toast.classList.add("show");
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => toast.classList.remove("show"), 2000);
+}
+
+async function saveToHash() {
+  const text = getRawText();
+  const urlBar = document.getElementById("url-bar");
+
+  if (!text.trim()) {
+    history.replaceState(null, "", location.pathname);
+    printUrl.href = location.href;
+    updateUrlBar(0);
+    return true;
+  }
+
+  const compressed = await compress(text);
+  const fullUrl = location.origin + location.pathname + "#" + compressed;
+  updateUrlBar(fullUrl.length);
+
+  if (fullUrl.length > URL_LIMIT) {
+    showToast("Text too long to save in URL", "error");
+    return false;
+  }
+
+  history.replaceState(null, "", "#" + compressed);
+  printUrl.href = location.href;
+  return true;
 }
 
 function closeQr() {
-    qrOverlay.classList.remove("open");
-    qrContainer.innerHTML = "";
+  qrOverlay.classList.remove("open");
+  qrOverlay.addEventListener(
+    "transitionend",
+    () => {
+      qrContainer.innerHTML = "";
+    },
+    { once: true },
+  );
 }
 
 // --- Cursor ---
 function saveCursor() {
-    const sel = window.getSelection();
-    if (!sel.rangeCount) return { divIdx: 0, offset: 0 };
-    const range = sel.getRangeAt(0);
-    const node = ancestorDiv(range.startContainer);
-    return {
-        divIdx: Math.max(
-            0,
-            Array.prototype.indexOf.call(editor.children, node),
-        ),
-        offset:
-            range.startContainer.nodeType === Node.TEXT_NODE
-                ? range.startOffset
-                : 0,
-    };
+  const sel = window.getSelection();
+  if (!sel.rangeCount) return { divIdx: 0, offset: 0 };
+  const range = sel.getRangeAt(0);
+  const node = ancestorDiv(range.startContainer);
+  return {
+    divIdx: Math.max(0, Array.prototype.indexOf.call(editor.children, node)),
+    offset:
+      range.startContainer.nodeType === Node.TEXT_NODE ? range.startOffset : 0,
+  };
 }
 
 function restoreCursor({ divIdx, offset }) {
-    const div = editor.children[divIdx] ?? editor.lastChild;
-    if (!div) return;
-    const r = document.createRange();
-    if (div.firstChild?.nodeType === Node.TEXT_NODE) {
-        r.setStart(div.firstChild, Math.min(offset, div.firstChild.length));
-    } else {
-        r.setStart(div, 0);
-    }
-    r.collapse(true);
-    const sel = window.getSelection();
-    sel.removeAllRanges();
-    sel.addRange(r);
-    editor.focus();
+  const div = editor.children[divIdx] ?? editor.lastChild;
+  if (!div) return;
+  const r = document.createRange();
+  if (div.firstChild?.nodeType === Node.TEXT_NODE) {
+    r.setStart(div.firstChild, Math.min(offset, div.firstChild.length));
+  } else {
+    r.setStart(div, 0);
+  }
+  r.collapse(true);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(r);
+  editor.focus();
 }
 
 // --- Undo / Redo ---
-const UNDO_LIMIT = 200;
 const undoStack = [
-    { html: editor.innerHTML, cursor: { divIdx: 0, offset: 0 } },
+  { html: editor.innerHTML, cursor: { divIdx: 0, offset: 0 } },
 ];
 const redoStack = [];
 
 function pushUndo() {
-    const html = editor.innerHTML;
-    if (undoStack.at(-1)?.html === html) return;
-    if (undoStack.length >= UNDO_LIMIT) undoStack.shift();
-    undoStack.push({ html, cursor: saveCursor() });
-    redoStack.length = 0;
+  const html = editor.innerHTML;
+  if (undoStack.at(-1)?.html === html) return;
+  if (undoStack.length >= UNDO_LIMIT) undoStack.shift();
+  undoStack.push({ html, cursor: saveCursor() });
+  redoStack.length = 0;
 }
 
 function applySnap(snap) {
-    editor.innerHTML = snap.html;
-    mdRender(editor);
-    restoreCursor(snap.cursor);
+  editor.innerHTML = snap.html;
+  mdRender(editor);
+  restoreCursor(snap.cursor);
 }
 
 function applyUndo() {
-    if (undoStack.length <= 1) return;
-    redoStack.push(undoStack.pop());
-    applySnap(undoStack.at(-1));
+  if (undoStack.length <= 1) return;
+  redoStack.push(undoStack.pop());
+  applySnap(undoStack.at(-1));
 }
 
 function applyRedo() {
-    if (!redoStack.length) return;
-    undoStack.push(redoStack.pop());
-    applySnap(undoStack.at(-1));
+  if (!redoStack.length) return;
+  undoStack.push(redoStack.pop());
+  applySnap(undoStack.at(-1));
 }
 
 // --- Scheduling ---
 let undoTimer = null;
 
 function scheduleCommit() {
-    clearTimeout(undoTimer);
-    undoTimer = setTimeout(pushUndo, 300);
+  clearTimeout(undoTimer);
+  undoTimer = setTimeout(pushUndo, 300);
 }
 
 // --- Paste ---
 function pasteLines(lines) {
-    const sel = window.getSelection();
-    if (!sel.rangeCount) return;
-    const range = sel.getRangeAt(0);
-    let startContainer = range.startContainer;
-    let startOffset = range.startOffset;
+  const sel = window.getSelection();
+  if (!sel.rangeCount) return;
+  const range = sel.getRangeAt(0);
+  let startContainer = range.startContainer;
+  let startOffset = range.startOffset;
 
-    if (startContainer === editor) {
-        const child =
-            editor.children[Math.min(startOffset, editor.children.length - 1)];
-        if (child) {
-            const textNode = child.firstChild;
-            startContainer = textNode ?? child;
-            startOffset = textNode ? textNode.length : 0;
-        }
+  if (startContainer === editor) {
+    const child =
+      editor.children[Math.min(startOffset, editor.children.length - 1)];
+    if (child) {
+      const textNode = child.firstChild;
+      startContainer = textNode ?? child;
+      startOffset = textNode ? textNode.length : 0;
     }
+  }
 
-    sel.deleteFromDocument();
-    const currentDiv = ancestorDiv(startContainer);
-    const divs = Array.from(editor.children);
-    const idx = Math.max(
-        0,
-        currentDiv ? divs.indexOf(currentDiv) : divs.length - 1,
-    );
-    const offset = startContainer.nodeType === Node.TEXT_NODE ? startOffset : 0;
-    const before = (currentDiv?.textContent ?? "").slice(0, offset);
-    const after = (currentDiv?.textContent ?? "").slice(offset);
-    const newLines = divs.slice(0, idx).map((d) => d.textContent);
-    lines.forEach((line, i) => newLines.push(i === 0 ? before + line : line));
-    newLines[newLines.length - 1] += after;
-    divs.slice(idx + 1).forEach((d) => newLines.push(d.textContent));
-    const cursorIdx = idx + lines.length - 1;
-    editor.innerHTML = buildHtml(newLines);
-    restoreCursor({
-        divIdx: cursorIdx,
-        offset: newLines[cursorIdx].length - after.length,
-    });
-    mdRender(editor);
-    scheduleCommit();
+  sel.deleteFromDocument();
+  const currentDiv = ancestorDiv(startContainer);
+  const divs = Array.from(editor.children);
+  const idx = Math.max(
+    0,
+    currentDiv ? divs.indexOf(currentDiv) : divs.length - 1,
+  );
+  const offset = startContainer.nodeType === Node.TEXT_NODE ? startOffset : 0;
+  const before = (currentDiv?.textContent ?? "").slice(0, offset);
+  const after = (currentDiv?.textContent ?? "").slice(offset);
+  const newLines = divs.slice(0, idx).map((d) => d.textContent);
+  lines.forEach((line, i) => newLines.push(i === 0 ? before + line : line));
+  newLines[newLines.length - 1] += after;
+  divs.slice(idx + 1).forEach((d) => newLines.push(d.textContent));
+  const cursorIdx = idx + lines.length - 1;
+  editor.innerHTML = buildHtml(newLines);
+  restoreCursor({
+    divIdx: cursorIdx,
+    offset: newLines[cursorIdx].length - after.length,
+  });
+  mdRender(editor);
+  scheduleCommit();
 }
 
 // --- Editor events ---
 editor.addEventListener("keydown", (e) => {
-    const ctrl = e.ctrlKey || e.metaKey;
-    const key = e.key.toLowerCase();
+  const ctrl = e.ctrlKey || e.metaKey;
+  const key = e.key.toLowerCase();
 
-    if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
-        const sel = window.getSelection();
-        if (sel.rangeCount && !sel.getRangeAt(0).collapsed) {
-            requestAnimationFrame(() => {
-                if (!editor.children.length) return;
-                if (e.key === "ArrowLeft") {
-                    restoreCursor({ divIdx: 0, offset: 0 });
-                } else {
-                    const last = editor.children.length - 1;
-                    restoreCursor({
-                        divIdx: last,
-                        offset: editor.children[last].textContent.length,
-                    });
-                }
-            });
-        }
-        return;
-    }
-
-    if (ctrl && key === "z" && !e.shiftKey) {
-        e.preventDefault();
-        applyUndo();
-        return;
-    }
-    if (ctrl && (key === "y" || (key === "z" && e.shiftKey))) {
-        e.preventDefault();
-        applyRedo();
-        return;
-    }
-
-    if (e.key === "Tab") {
-        e.preventDefault();
-        pasteLines(["    "]);
-        return;
-    }
-
-    if (e.key !== "Backspace" && e.key !== "Delete") return;
-    if (editor.children.length > 1) return;
-    if (!editor.firstChild.textContent) {
-        e.preventDefault();
-        return;
-    }
+  if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
     const sel = window.getSelection();
-    if (!sel.rangeCount) return;
-    const range = sel.getRangeAt(0);
-    const atStart =
-        range.collapsed &&
-        range.startOffset === 0 &&
-        (range.startContainer === editor.firstChild ||
-            range.startContainer === editor.firstChild?.firstChild);
-    if (atStart) e.preventDefault();
+    if (sel.rangeCount && !sel.getRangeAt(0).collapsed) {
+      requestAnimationFrame(() => {
+        if (!editor.children.length) return;
+        if (e.key === "ArrowLeft") {
+          restoreCursor({ divIdx: 0, offset: 0 });
+        } else {
+          const last = editor.children.length - 1;
+          restoreCursor({
+            divIdx: last,
+            offset: editor.children[last].textContent.length,
+          });
+        }
+      });
+    }
+    return;
+  }
+
+  if (ctrl && key === "z" && !e.shiftKey) {
+    e.preventDefault();
+    applyUndo();
+    return;
+  }
+  if (ctrl && (key === "y" || (key === "z" && e.shiftKey))) {
+    e.preventDefault();
+    applyRedo();
+    return;
+  }
+
+  if (e.key === "Tab") {
+    e.preventDefault();
+    pasteLines(["    "]);
+    return;
+  }
+
+  if (e.key !== "Backspace" && e.key !== "Delete") return;
+  if (editor.children.length > 1) return;
+  if (!editor.firstChild.textContent) {
+    e.preventDefault();
+    return;
+  }
+  const sel = window.getSelection();
+  if (!sel.rangeCount) return;
+  const range = sel.getRangeAt(0);
+  const atStart =
+    range.collapsed &&
+    range.startOffset === 0 &&
+    (range.startContainer === editor.firstChild ||
+      range.startContainer === editor.firstChild?.firstChild);
+  if (atStart) e.preventDefault();
 });
 
 editor.addEventListener("input", () => {
-    requestAnimationFrame(() => {
-        Array.from(editor.childNodes).forEach((node) => {
-            if (node.nodeType !== Node.ELEMENT_NODE || node.nodeName !== "DIV")
-                editor.removeChild(node);
-        });
-        if (
-            !editor.children.length ||
-            (editor.children.length === 1 && !editor.firstChild.textContent)
-        ) {
-            editor.innerHTML = EMPTY_HTML;
-            restoreCursor({ divIdx: 0, offset: 0 });
-        }
-        mdRender(editor);
-        scheduleCommit();
+  requestAnimationFrame(() => {
+    Array.from(editor.childNodes).forEach((node) => {
+      if (node.nodeType !== Node.ELEMENT_NODE || node.nodeName !== "DIV")
+        editor.removeChild(node);
     });
+    if (
+      !editor.children.length ||
+      (editor.children.length === 1 && !editor.firstChild.textContent)
+    ) {
+      editor.innerHTML = EMPTY_HTML;
+      restoreCursor({ divIdx: 0, offset: 0 });
+    }
+    mdRender(editor);
+    scheduleCommit();
+  });
 });
 
 editor.addEventListener("paste", (e) => {
-    e.preventDefault();
-    pasteLines(
-        e.clipboardData
-            .getData("text/plain")
-            .replace(/\r\n?/g, "\n")
-            .replace(/\t/g, "    ")
-            .split("\n"),
-    );
+  e.preventDefault();
+  pasteLines(
+    e.clipboardData
+      .getData("text/plain")
+      .replace(/\r\n?/g, "\n")
+      .replace(/\t/g, "    ")
+      .split("\n"),
+  );
 });
 
 window.addEventListener("beforeprint", () => saveToHash());
@@ -317,121 +343,129 @@ window.addEventListener("beforeprint", () => saveToHash());
 // --- Load from hash ---
 const hash = location.hash.slice(1);
 if (hash) {
-    decompress(hash).then((text) => {
-        editor.innerHTML = buildHtml(text.replace(/\r\n?/g, "\n").split("\n"));
-        mdRender(editor);
-        undoStack[0] = {
-            html: editor.innerHTML,
-            cursor: { divIdx: 0, offset: 0 },
-        };
-        const last = editor.children.length - 1;
-        restoreCursor({
-            divIdx: last,
-            offset: editor.children[last].textContent.length,
-        });
+  decompress(hash)
+    .then((text) => {
+      editor.innerHTML = buildHtml(text.replace(/\r\n?/g, "\n").split("\n"));
+      mdRender(editor);
+      undoStack[0] = {
+        html: editor.innerHTML,
+        cursor: { divIdx: 0, offset: 0 },
+      };
+      const last = editor.children.length - 1;
+      restoreCursor({
+        divIdx: last,
+        offset: editor.children[last].textContent.length,
+      });
+      updateUrlBar(location.href.length);
+    })
+    .catch(() => {
+      history.replaceState(null, "", location.pathname);
+      editor.innerHTML = EMPTY_HTML;
+      showToast("Invalid URL", "error");
+      editor.focus();
     });
 } else {
-    editor.focus();
+  editor.focus();
 }
 
 // --- Buttons ---
 document.getElementById("btn-save").addEventListener("click", async () => {
-    await saveToHash();
-    showToast("File saved", "info");
+  if (await saveToHash()) showToast("File saved", "info");
 });
 
 document.getElementById("btn-trash").addEventListener("click", () => {
-    editor.innerHTML = EMPTY_HTML;
-    scheduleCommit();
-    editor.focus();
+  editor.innerHTML = EMPTY_HTML;
+  scheduleCommit();
+  editor.focus();
 });
 
 document.getElementById("btn-download").addEventListener("click", async () => {
-    await saveToHash();
-    const a = Object.assign(document.createElement("a"), {
-        href: URL.createObjectURL(
-            new Blob([getRawText()], { type: "text/plain" }),
-        ),
-        download: "TxtUrl.md",
-    });
-    a.click();
-    URL.revokeObjectURL(a.href);
+  await saveToHash();
+  const a = Object.assign(document.createElement("a"), {
+    href: URL.createObjectURL(new Blob([getRawText()], { type: "text/plain" })),
+    download: "TxtUrl.md",
+  });
+  a.click();
+  URL.revokeObjectURL(a.href);
 });
 
 document.getElementById("btn-print").addEventListener("click", async () => {
-    await saveToHash();
-    window.print();
+  if (!(await saveToHash())) return;
+  window.print();
 });
 
 document.getElementById("btn-share").addEventListener("click", async () => {
-    await saveToHash();
-    if (navigator.clipboard) {
-        await navigator.clipboard.writeText(location.href);
-        showToast("Link copied!", "info");
-    } else {
-        showToast("Copy from address bar.", "info");
-    }
-    if (navigator.share)
-        navigator.share({ url: location.href }).catch(() => {});
+  if (!(await saveToHash())) return;
+  if (navigator.clipboard) {
+    await navigator.clipboard.writeText(location.href);
+    showToast("Link copied", "info");
+  } else {
+    showToast("Copy from address bar", "info");
+  }
+  if (navigator.share) navigator.share({ url: location.href }).catch(() => {});
 });
 
 document.getElementById("btn-qr").addEventListener("click", async () => {
-    await saveToHash();
-    try {
-        const qr = qrcode(0, "L");
-        qr.addData(location.href);
-        qr.make();
-        qrContainer.innerHTML = qr.createSvgTag({ cellSize: 8, margin: 0 });
-        qrOverlay.classList.add("open");
-    } catch {
-        showToast("Text too long for QR code.", "error");
-    }
+  if (!(await saveToHash())) return;
+  try {
+    const qr = qrcode(0, "L");
+    qr.addData(location.href);
+    qr.make();
+    qrContainer.innerHTML = qr.createSvgTag({ cellSize: 8, margin: 0 });
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => qrOverlay.classList.add("open")),
+    );
+  } catch {
+    showToast("Text too long for QR code", "error");
+  }
 });
 
 document.getElementById("qr-download").addEventListener("click", () => {
-    const svg = qrContainer.querySelector("svg");
-    const url = URL.createObjectURL(
-        new Blob([new XMLSerializer().serializeToString(svg)], {
-            type: "image/svg+xml;charset=utf-8",
-        }),
-    );
-    const img = new Image();
-    img.onload = () => {
-        const canvas = Object.assign(document.createElement("canvas"), {
-            width: img.width,
-            height: img.height,
-        });
-        canvas.getContext("2d").drawImage(img, 0, 0);
-        canvas.toBlob((blob) => {
-            const a = Object.assign(document.createElement("a"), {
-                href: URL.createObjectURL(blob),
-                download: "qrcode.png",
-            });
-            a.click();
-            URL.revokeObjectURL(a.href);
-            URL.revokeObjectURL(url);
-        });
-    };
-    img.src = url;
+  const svg = qrContainer.querySelector("svg");
+  const url = URL.createObjectURL(
+    new Blob([new XMLSerializer().serializeToString(svg)], {
+      type: "image/svg+xml;charset=utf-8",
+    }),
+  );
+  const img = new Image();
+  img.onload = () => {
+    const canvas = Object.assign(document.createElement("canvas"), {
+      width: img.width,
+      height: img.height,
+    });
+    canvas.getContext("2d").drawImage(img, 0, 0);
+    canvas.toBlob((blob) => {
+      const a = Object.assign(document.createElement("a"), {
+        href: URL.createObjectURL(blob),
+        download: "qrcode.png",
+      });
+      a.click();
+      URL.revokeObjectURL(a.href);
+      URL.revokeObjectURL(url);
+    });
+  };
+  img.src = url;
 });
 
 document.getElementById("qr-close").addEventListener("click", closeQr);
 qrOverlay.addEventListener("click", (e) => {
-    if (e.target === qrOverlay) closeQr();
-});
-document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") closeQr();
+  if (e.target === qrOverlay) closeQr();
 });
 
 document.addEventListener("keydown", (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
-        e.preventDefault();
-        document.getElementById("btn-save").click();
-    }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+    e.preventDefault();
+    document.getElementById("btn-save").click();
+  }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "p") {
+    e.preventDefault();
+    document.getElementById("btn-print").click();
+  }
+  if (e.key === "Escape") closeQr();
 });
 
 if ("serviceWorker" in navigator) {
-    const basePath = window.location.pathname.replace(/\/[^/]*$/, "/");
-    const swPath = basePath + "service-worker.js";
-    navigator.serviceWorker.register(swPath);
+  const basePath = window.location.pathname.replace(/\/[^/]*$/, "/");
+  const swPath = basePath + "service-worker.js";
+  navigator.serviceWorker.register(swPath);
 }

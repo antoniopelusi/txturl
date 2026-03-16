@@ -139,7 +139,7 @@ header button img {
     min-height: 1.4em;
     position: relative;
     white-space: pre-wrap;
-    line-height: 0.8em;
+    line-height: 1.4em;
     padding: 0.3em;
 }
 
@@ -148,7 +148,6 @@ footer {
     flex-shrink: 0;
     display: flex;
     align-items: center;
-    justify-content: space-between;
     height: 1.5em;
     padding: 0 0.75em;
     opacity: 0.8;
@@ -159,15 +158,38 @@ footer small {
 }
 
 footer a {
+    flex: 1;
     display: flex;
     align-items: center;
     gap: 0.4em;
     text-decoration-color: var(--text-dim);
 }
 
+footer a:last-child {
+    justify-content: flex-end;
+}
+
 footer a img {
     width: 1em;
     height: 1em;
+}
+
+#url-bar-track {
+    height: 25%;
+    width: 50%;
+    max-width: 200px;
+    background: var(--text-faint);
+    border-radius: 0.4em;
+    overflow: hidden;
+}
+
+#url-bar {
+    height: 100%;
+    width: 0%;
+    background: var(--text);
+    transition:
+        width 0.3s,
+        background 0.3s;
 }
 
 /* --- Toast --- */
@@ -200,17 +222,21 @@ footer a img {
 
 /* --- QR overlay --- */
 #qr-overlay {
-    display: none;
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.5);
+    display: flex;
     align-items: center;
     justify-content: center;
     z-index: 100;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
 }
 
 #qr-overlay.open {
-    display: flex;
+    opacity: 1;
+    pointer-events: auto;
 }
 
 #qr-modal {
