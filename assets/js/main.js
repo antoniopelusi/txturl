@@ -64,11 +64,13 @@ const qrContainer = document.getElementById("qr-container");
 const qrOverlay = document.getElementById("qr-overlay");
 const toast = document.getElementById("toast");
 const printUrl = document.getElementById("print-url");
+const DEFAULT_TITLE = document.title;
 
 // --- Utilities ---
 const EMPTY_HTML = "<div><br></div>";
 const UNDO_LIMIT = 200;
 const URL_LIMIT = 60000;
+const DEFAULT_FILENAME = "TxtUrl";
 
 function updateUrlBar(length) {
   const urlBar = document.getElementById("url-bar");
@@ -79,6 +81,32 @@ function updateUrlBar(length) {
 
 function getRawText() {
   return Array.from(editor.children, (d) => d.textContent).join("\n");
+}
+
+function getFirstTitle(text) {
+  for (const line of text.split("\n")) {
+    const match = line.match(/^\s*#+\s+(.*)$/);
+    if (!match) continue;
+    const title = match[1].replace(/\s*#+\s*$/, "").trim();
+    if (title) return title;
+  }
+  return "";
+}
+
+function sanitizeFilename(name) {
+  return name
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[\\/:*?"<>|]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function getFilenameBase() {
+  const title = getFirstTitle(getRawText());
+  const slug = sanitizeFilename(title);
+  return slug || DEFAULT_FILENAME;
 }
 
 function escapeHtml(str) {
@@ -338,7 +366,14 @@ editor.addEventListener("paste", (e) => {
   );
 });
 
-window.addEventListener("beforeprint", () => saveToHash());
+window.addEventListener("beforeprint", () => {
+  saveToHash();
+  document.title = getFilenameBase();
+});
+
+window.addEventListener("afterprint", () => {
+  document.title = DEFAULT_TITLE;
+});
 
 // --- Load from hash ---
 const hash = location.hash.slice(1);
@@ -383,7 +418,7 @@ document.getElementById("btn-download").addEventListener("click", async () => {
   await saveToHash();
   const a = Object.assign(document.createElement("a"), {
     href: URL.createObjectURL(new Blob([getRawText()], { type: "text/plain" })),
-    download: "TxtUrl.md",
+    download: `${getFilenameBase()}.md`,
   });
   a.click();
   URL.revokeObjectURL(a.href);
@@ -391,6 +426,7 @@ document.getElementById("btn-download").addEventListener("click", async () => {
 
 document.getElementById("btn-print").addEventListener("click", async () => {
   if (!(await saveToHash())) return;
+  document.title = getFilenameBase();
   window.print();
 });
 
