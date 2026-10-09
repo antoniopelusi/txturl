@@ -175,6 +175,7 @@ header button img {
     color: transparent;
     caret-color: var(--text);
     overflow-y: auto;
+    overscroll-behavior-y: none;
     z-index: 1;
     /* Prevent WebKit from painting text colour over transparent */
     -webkit-text-fill-color: transparent;
