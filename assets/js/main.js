@@ -256,7 +256,8 @@ if (hash) {
       loadText(text);
       updateUrlBar(location.href.length);
       editor.focus();
-      editor.setSelectionRange(editor.value.length, editor.value.length);
+      editor.setSelectionRange(0, 0);
+      editor.scrollTop = 0;
     })
     .catch(() => {
       history.replaceState(null, "", location.pathname);
