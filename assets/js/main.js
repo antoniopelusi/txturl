@@ -127,8 +127,14 @@ function renderDisplay() {
 // visible region always matches what the textarea is showing.
 // ---------------------------------------------------------------------------
 
+let _scrollRafId = null;
+
 function syncScroll() {
-  display.style.transform = `translateY(${-editor.scrollTop}px)`;
+  if (_scrollRafId) return;
+  _scrollRafId = requestAnimationFrame(() => {
+    display.style.transform = `translateY(${-editor.scrollTop}px)`;
+    _scrollRafId = null;
+  });
 }
 
 editor.addEventListener("scroll", syncScroll);
