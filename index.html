@@ -16,10 +16,7 @@
             content="A minimalist text editor fully embedded in the URL, with content encoded in the query string and no backend dependency."
         />
         <meta property="og:type" content="website" />
-        <meta
-            property="og:url"
-            content="https://antoniopelusi.github.io/txturl"
-        />
+        <meta property="og:url" content="https://antoniopelusi.github.io/txturl" />
         <link
             rel="icon"
             type="image/png"
@@ -45,7 +42,7 @@
     </head>
     <body>
         <a id="print-url" href="">
-            <img src="./assets/icons/link.svg" />
+            <img src="./assets/icons/link.svg" alt="" />
             Edit the document
         </a>
         <header>
@@ -53,7 +50,7 @@
                 <img src="./assets/icons/link.svg" alt="TxtUrl logo" />
                 <h1>TxtUrl</h1>
             </span>
-            <div>
+            <nav aria-label="Toolbar">
                 <button id="btn-save" aria-label="Save file">
                     <img src="./assets/icons/floppy-disk.svg" alt="" />
                 </button>
@@ -72,17 +69,19 @@
                 <button id="btn-qr" aria-label="Show QR code">
                     <img src="./assets/icons/qr.svg" alt="" />
                 </button>
-            </div>
+            </nav>
         </header>
-        <div
-            id="editor"
-            contenteditable="true"
-            spellcheck="false"
-            role="textbox"
-            aria-multiline="true"
-            aria-label="Text editor"
-        >
-            <div><br /></div>
+        <div id="editor-wrap">
+            <textarea
+                id="editor"
+                spellcheck="false"
+                autocomplete="off"
+                autocorrect="off"
+                autocapitalize="off"
+                aria-label="Text editor"
+                aria-multiline="true"
+            ></textarea>
+            <div id="display" aria-hidden="true"></div>
         </div>
         <footer>
             <a href="/">

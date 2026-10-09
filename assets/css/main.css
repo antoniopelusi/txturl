@@ -1,38 +1,34 @@
 @font-face {
     font-family: "Roboto Local";
-    src: url("../fonts/Roboto-Regular.woff2") format("woff2");
-    font-weight: 400;
+    src: url("../fonts/Roboto-VariableFont_wdth,wght.ttf") format("truetype");
+    font-weight: 100 900;
     font-style: normal;
     font-display: block;
 }
 
-@font-face {
-    font-family: "Roboto Local";
-    src: url("../fonts/Roboto-Bold.woff2") format("woff2");
-    font-weight: 700;
-    font-style: normal;
-    font-display: block;
-}
-
-@font-face {
-    font-family: "Roboto Mono Local";
-    src: url("../fonts/RobotoMono-Regular.ttf") format("truetype");
-    font-weight: 400;
-    font-style: normal;
-    font-display: block;
-}
+/* ---------------------------------------------------------------------------
+   Design tokens
+   --------------------------------------------------------------------------- */
 
 :root {
-    --bg: #111828;
-    --bg-box: #121826;
-    --text: #a2afc1;
-    --text-dim: #778293;
-    --text-faint: #3d4556;
-    --text-muted: #808080;
-    --editor-bg: #0c101b;
-    --info: #5fc97b;
-    --error: #e05c5c;
+    --bg:          #111828;
+    --bg-box:      #121826;
+    --text:        #a2afc1;
+    --text-bright: #c8d6e8;
+    --text-dim:    #778293;
+    --text-faint:  #3d4556;
+    --text-muted:  #808080;
+    --editor-bg:   #0c101b;
+    --info:        #5fc97b;
+    --error:       #e05c5c;
+
+    --line-height: 1.7em;
+    --editor-pad:  2em;
 }
+
+/* ---------------------------------------------------------------------------
+   Reset / base
+   --------------------------------------------------------------------------- */
 
 *,
 *::before,
@@ -40,13 +36,9 @@
     box-sizing: border-box;
     margin: 0;
     padding: 0;
-    font-family: "Roboto Local";
-    font-feature-settings:
-        "liga" 0,
-        "clig" 0,
-        "kern" 0;
+    font-family: "Roboto Local", sans-serif;
+    font-feature-settings: "liga" 0, "clig" 0, "kern" 0;
     color: var(--text);
-    /*outline: 1px solid #ff4500a0;*/
 }
 
 ::selection {
@@ -73,11 +65,18 @@ img {
     display: block;
 }
 
+/* ---------------------------------------------------------------------------
+   Print URL (shown only during print)
+   --------------------------------------------------------------------------- */
+
 #print-url {
     display: none;
 }
 
-/* --- Header --- */
+/* ---------------------------------------------------------------------------
+   Header
+   --------------------------------------------------------------------------- */
+
 header {
     flex-shrink: 0;
     display: flex;
@@ -101,7 +100,7 @@ header span h1 {
     font-size: 1.3em;
 }
 
-header div {
+header nav {
     display: flex;
     gap: 1em;
 }
@@ -123,26 +122,81 @@ header button img {
     height: 1.5em;
 }
 
-/* --- Editor --- */
-#editor {
+/* ---------------------------------------------------------------------------
+   Editor — wrapper, textarea (input layer), display layer
+
+   Architecture:
+   - #editor-wrap  clips both layers and provides the background colour.
+   - #editor       is the native <textarea>. Its text is transparent so only
+                   the caret is visible; all other editing behaviour is 100%
+                   native (undo, redo, copy, cut, paste, selection, …).
+   - #display      is a non-interactive <div> rendered behind the textarea.
+                   JS writes one .line div per text line with the appropriate
+                   markdown CSS class. It never scrolls independently; JS
+                   shifts it with transform: translateY(-scrollTop) to keep
+                   it in sync with the textarea viewport.
+
+   Both layers share identical font, font-size, line-height, padding and
+   word-wrap settings so styled text in #display sits directly behind the
+   transparent text in #editor.
+   --------------------------------------------------------------------------- */
+
+#editor-wrap {
     flex: 1;
-    overflow-y: auto;
-    padding: 2em;
-    outline: none;
-    word-break: break-word;
+    min-height: 0;
+    position: relative;
     border-radius: 1em;
     background-color: var(--editor-bg);
-    min-height: 0;
+    overflow: hidden;
 }
 
-#editor div {
-    min-height: 1.7em;
-    position: relative;
+/* Shared geometry and typography — must be identical on both layers */
+#editor,
+#display {
+    position: absolute;
+    inset: 0;
+    padding: var(--editor-pad);
+    /* Explicit font stack: textarea does not inherit from * in all browsers */
+    font-family: "Roboto Local", sans-serif;
+    font-size: 1em;
+    line-height: var(--line-height);
+    word-break: break-word;
     white-space: pre-wrap;
-    line-height: 1.7em;
+    overflow-wrap: break-word;
+    tab-size: 4;
 }
 
-/* --- Footer --- */
+/* Input layer */
+#editor {
+    resize: none;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: transparent;
+    caret-color: var(--text);
+    overflow-y: auto;
+    z-index: 1;
+    /* Prevent WebKit from painting text colour over transparent */
+    -webkit-text-fill-color: transparent;
+}
+
+/* Display layer */
+#display {
+    overflow: visible;
+    pointer-events: none;
+    z-index: 0;
+    /* scrollTop is mirrored via transform: translateY(-px) by JS */
+}
+
+#display .line {
+    min-height: var(--line-height);
+    line-height: var(--line-height);
+}
+
+/* ---------------------------------------------------------------------------
+   Footer
+   --------------------------------------------------------------------------- */
+
 footer {
     flex-shrink: 0;
     display: flex;
@@ -150,10 +204,6 @@ footer {
     height: 1.5em;
     padding: 0 0.75em;
     opacity: 0.8;
-}
-
-footer small {
-    font-size: 0.75em;
 }
 
 footer a {
@@ -168,9 +218,8 @@ footer a:last-child {
     justify-content: flex-end;
 }
 
-footer a img {
-    width: 1em;
-    height: 1em;
+footer small {
+    font-size: 0.75em;
 }
 
 #url-bar-track {
@@ -186,47 +235,46 @@ footer a img {
     height: 100%;
     width: 0%;
     background: var(--text);
-    transition:
-        width 0.3s,
-        background 0.3s;
+    transition: width 0.3s, background 0.3s;
 }
 
-/* --- Toast --- */
+/* ---------------------------------------------------------------------------
+   Toast
+   --------------------------------------------------------------------------- */
+
 #toast {
     position: fixed;
     bottom: 4em;
     left: 50%;
     transform: translateX(-50%);
-    white-space: nowrap;
     padding: 0.4em 0.8em;
     border-radius: 0.4em;
+    white-space: nowrap;
+    background-color: var(--text);
+    color: var(--bg);
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.3s;
-    background-color: var(--text);
-    color: var(--bg);
 }
 
 #toast.show {
     opacity: 1;
 }
 
-#toast[data-type="info"] {
-    background-color: var(--info);
-}
+#toast[data-type="info"]  { background-color: var(--info); }
+#toast[data-type="error"] { background-color: var(--error); }
 
-#toast[data-type="error"] {
-    background-color: var(--error);
-}
+/* ---------------------------------------------------------------------------
+   QR overlay
+   --------------------------------------------------------------------------- */
 
-/* --- QR overlay --- */
 #qr-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.5);
     display: flex;
     align-items: center;
     justify-content: center;
+    background: rgba(0, 0, 0, 0.5);
     z-index: 100;
     opacity: 0;
     pointer-events: none;
@@ -249,9 +297,9 @@ footer a img {
     display: flex;
     align-items: center;
     gap: 0.4em;
-    cursor: pointer;
     background: none;
     border: none;
+    cursor: pointer;
     font-size: inherit;
     padding: 0.25em;
     transition: opacity 0.15s;
@@ -278,81 +326,126 @@ footer a img {
     border-radius: 1em;
 }
 
-/* --- Markdown --- */
-.md-h1 {
-    font-size: 1.8em;
-    font-weight: 700;
-}
-.md-h2 {
-    font-size: 1.5em;
-    font-weight: 700;
-}
-.md-h3 {
-    font-size: 1.3em;
-    font-weight: 700;
-}
-.md-h4 {
-    font-size: 1.1em;
-    font-weight: 700;
-}
-.md-h5 {
-    font-size: 1em;
-    font-weight: 700;
-}
-.md-h6 {
-    font-size: 0.9em;
-    font-weight: 700;
+/* ---------------------------------------------------------------------------
+   Markdown line styles
+
+   ALIGNMENT CONTRACT
+   ──────────────────
+   The textarea (invisible) and the display layer share identical font-size,
+   line-height, padding and word-wrap. The caret from the textarea must land
+   on the same pixel column as the corresponding character in the display.
+
+   Rules that are safe:
+     • color / opacity                → ok, no geometry change
+     • background-color / box-shadow  → ok, does not affect layout
+     • text-shadow (offset 0)         → ok, purely visual
+     • font-weight (variable font)    → ok, Roboto Variable interpolates
+                                        continuously — no metric discontinuity
+
+   Rules that BREAK alignment and must NOT be used:
+     • padding-left / margin-left     → shifts display text right of the caret
+     • font-size                      → changes row height, breaks vertical sync
+     • line-height                    → changes row height, breaks vertical sync
+     • font-family (different metrics)→ changes character width
+     • transform: scale (any axis)    → shifts characters or changes layout
+   --------------------------------------------------------------------------- */
+
+/*
+ * Headings: font-weight + colour + opacity only.
+ * No font-size, no line-height — every row stays exactly 1.7em tall.
+ * With Roboto Variable, font-weight interpolates continuously so there
+ * are no metric discontinuities between weights.
+ * h1 gets a full-width underline via ::after (position: absolute, zero
+ * layout impact), identical to the --- hr line.
+ */
+.md-h1 { position: relative; font-weight: 700; color: var(--text-bright); }
+.md-h2 { font-weight: 650; color: var(--text-bright); opacity: 0.92; }
+.md-h3 { font-weight: 600; color: var(--text-bright); opacity: 0.84; }
+.md-h4 { font-weight: 550; color: var(--text-bright); opacity: 0.76; }
+.md-h5 { font-weight: 500; color: var(--text-bright); opacity: 0.68; }
+.md-h6 { font-weight: 500; color: var(--text-bright); opacity: 0.60; }
+
+/* h1 underline — same style as .hr-line */
+.md-h1::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 1px;
+    background: var(--text-dim);
+    opacity: 0.4;
 }
 
+/* Quote: background + colour. The left bar is drawn with ::before using
+   position: absolute so it occupies zero layout space and overlaps the
+   leading ">" character without shifting the caret. */
 .md-quote {
-    padding-left: 0.3em;
-    border-left: solid 3px var(--text-faint);
+    position: relative;
     color: var(--text-dim);
     background-color: var(--bg-box);
 }
 
-.md-code {
-    font-family: "Roboto Mono Local";
-    color: var(--text-dim);
+.md-quote::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 1ch;
+    background: var(--text-faint);
+    opacity: 0.35;
 }
 
+/* Code block body */
 .md-code {
-    font-family: "Roboto Mono Local";
     color: var(--text-dim);
     background-color: var(--bg-box);
 }
 
+/* Code block delimiter (``` line) */
 .md-code-delim {
-    font-family: "Roboto Mono Local";
     color: var(--text-faint);
 }
 
+/* List items */
 .md-li,
 .md-oli {
-    padding-left: 1.2em;
+    color: var(--text-dim);
 }
 
+/* Horizontal rule */
 .md-hr {
     display: flex;
     align-items: center;
-    opacity: 0.3;
 }
 
-.md-hr::after {
-    content: "";
+.hr-dashes {
+    color: var(--text-faint);
+    flex-shrink: 0;
+}
+
+/* Line after the dashes, vertically centred via flex */
+.hr-line {
     flex: 1;
-    border-top: 3px solid var(--text-dim);
-    margin-left: 0.2em;
+    height: 1px;
+    background: var(--text-dim);
+    opacity: 0.4;
+    margin-left: 0.4em;
 }
 
-/* --- Print --- */
+/* ---------------------------------------------------------------------------
+   Print
+   --------------------------------------------------------------------------- */
+
 @media print {
     :root {
-        --bg: white;
-        --bg-box: #f0f0f0;
-        --text: black;
-        --text-dim: #4d4d4d;
-        --text-faint: #b3b3b3;
+        --bg:          white;
+        --bg-box:      #f0f0f0;
+        --text:        black;
+        --text-bright: black;
+        --text-dim:    #4d4d4d;
+        --text-faint:  #b3b3b3;
     }
 
     * {
@@ -366,34 +459,17 @@ footer a img {
 
     header,
     footer,
-    title,
-    #toast {
+    #toast,
+    #editor {
         display: none;
     }
 
-    #editor {
-        height: auto;
-        overflow: visible;
-        flex: none;
-    }
-
     html,
-    body,
-    #editor {
-        background-color: var(--bg);
-        color: var(--text);
+    body {
         height: auto;
         overflow: visible;
+        background-color: var(--bg);
         padding: 0;
-        margin: 0;
-        gap: 0;
-    }
-
-    div {
-        background-color: var(--bg);
-        color: var(--text);
-        height: auto;
-        overflow: visible;
         margin: 0;
         gap: 0;
     }
@@ -402,20 +478,36 @@ footer a img {
         padding: 1cm;
     }
 
+    #editor-wrap {
+        flex: none;
+        height: auto;
+        overflow: visible;
+        background-color: var(--bg);
+        border-radius: 0;
+    }
+
+    #display {
+        position: static;
+        overflow: visible;
+        pointer-events: auto;
+        padding: 0;
+        transform: none;
+    }
+
     #print-url {
         display: flex;
         align-self: flex-end;
         align-items: center;
+        gap: 0.3em;
+        padding-bottom: 1em;
         font-size: 0.8em;
         color: var(--text-muted);
         text-decoration: none;
-        gap: 0.3em;
-        padding-bottom: 1em;
     }
 
     #print-url img {
-        filter: invert(0.8);
-        height: 1.2em;
         width: 1.2em;
+        height: 1.2em;
+        filter: invert(0.8);
     }
 }

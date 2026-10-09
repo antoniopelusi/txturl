@@ -1,22 +1,26 @@
-// --- Compression ---
+// ---------------------------------------------------------------------------
+// Compression
+// ---------------------------------------------------------------------------
+
 async function compress(text) {
   const stream = new CompressionStream("deflate-raw");
   const writer = stream.writable.getWriter();
   writer.write(new TextEncoder().encode(text));
   writer.close();
-  const buf = await new Response(stream.readable).arrayBuffer();
-  return btoa(
-    Array.from(new Uint8Array(buf), (b) => String.fromCharCode(b)).join(""),
-  )
+  const buf   = await new Response(stream.readable).arrayBuffer();
+  const bytes = new Uint8Array(buf);
+  let binary  = "";
+  for (const b of bytes) binary += String.fromCharCode(b);
+  return btoa(binary)
     .replace(/\+/g, "-")
     .replace(/\//g, "_")
     .replace(/=/g, "");
 }
 
 async function decompress(b64url) {
-  const b64 = b64url.replace(/-/g, "+").replace(/_/g, "/");
+  const b64    = b64url.replace(/-/g, "+").replace(/_/g, "/");
   const padded = b64 + "=".repeat((4 - (b64.length % 4)) % 4);
-  const bytes = Uint8Array.from(atob(padded), (c) => c.charCodeAt(0));
+  const bytes  = Uint8Array.from(atob(padded), (c) => c.charCodeAt(0));
   const stream = new DecompressionStream("deflate-raw");
   const writer = stream.writable.getWriter();
   writer.write(bytes);
@@ -26,69 +30,121 @@ async function decompress(b64url) {
   );
 }
 
-// --- Markdown ---
-const MD_CLASS_MAP = [
-  [/^###### /, "md-h6"],
-  [/^##### /, "md-h5"],
-  [/^#### /, "md-h4"],
-  [/^### /, "md-h3"],
-  [/^## /, "md-h2"],
-  [/^# /, "md-h1"],
-  [/^> /, "md-quote"],
-  [/^[-*] /, "md-li"],
-  [/^\d+\. /, "md-oli"],
-  [/^-{3,}$/, "md-hr"],
+// ---------------------------------------------------------------------------
+// DOM references
+// ---------------------------------------------------------------------------
+
+const editor      = document.getElementById("editor");      // <textarea>
+const display     = document.getElementById("display");     // render layer
+const urlBar      = document.getElementById("url-bar");
+const qrOverlay   = document.getElementById("qr-overlay");
+const qrContainer = document.getElementById("qr-container");
+const toast       = document.getElementById("toast");
+const printUrl    = document.getElementById("print-url");
+
+const DEFAULT_TITLE    = document.title;
+const DEFAULT_FILENAME = "TxtUrl";
+const URL_LIMIT        = 60_000;
+
+// ---------------------------------------------------------------------------
+// Markdown renderer
+//
+// Rules are tested against the raw line text in order (most-specific first).
+// Code blocks (``` delimiters) take priority over all other rules.
+// ---------------------------------------------------------------------------
+
+const MD_RULES = [
+  [/^######\s/, "md-h6"],
+  [/^#####\s/,  "md-h5"],
+  [/^####\s/,   "md-h4"],
+  [/^###\s/,    "md-h3"],
+  [/^##\s/,     "md-h2"],
+  [/^#\s/,      "md-h1"],
+  [/^>\s/,      "md-quote"],
+  [/^[-*]\s/,   "md-li"],
+  [/^\d+\.\s/,  "md-oli"],
+  [/^-{3,}$/,   "md-hr"],
 ];
 
-function mdRender(el) {
-  let inCode = false;
-  for (const div of el.children) {
-    const line = div.textContent;
-    const isDelimiter = /^`{3}/.test(line);
-    if (isDelimiter) inCode = !inCode;
+function escapeHtml(str) {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+/**
+ * Rebuild #display from the current textarea value.
+ *
+ * One <div class="line [md-class]"> is created per text line.
+ * Empty lines get a <br> so they maintain their visual height.
+ *
+ * Code-block tracking:
+ *   A line starting with ``` is always a delimiter (md-code-delim).
+ *   Lines between two delimiters receive md-code.
+ *   The inCode toggle happens AFTER classifying the delimiter line so
+ *   the ``` line itself always gets md-code-delim, never md-code.
+ */
+function renderDisplay() {
+  const lines    = editor.value.split("\n");
+  const fragment = document.createDocumentFragment();
+  let inCode     = false;
+
+  for (const line of lines) {
+    const isDelim = /^`{3}/.test(line);
+
     let cls;
-    if (isDelimiter) {
+    if (isDelim) {
       cls = "md-code-delim";
     } else if (inCode) {
       cls = "md-code";
     } else {
-      cls = MD_CLASS_MAP.find(([re]) => re.test(line))?.[1] ?? "md-p";
+      cls = MD_RULES.find(([re]) => re.test(line))?.[1] ?? "";
     }
-    if (div.className !== cls) div.className = cls;
+
+    if (isDelim) inCode = !inCode;
+
+    const div = document.createElement("div");
+    div.className = cls ? `line ${cls}` : "line";
+    if (cls === "md-hr") {
+      // Render the "---" prefix dimmed, then a line filling the rest of the row.
+      div.innerHTML = `<span class="hr-dashes">${escapeHtml(line)}</span><span class="hr-line"></span>`;
+    } else {
+      div.innerHTML = escapeHtml(line) || "<br>";
+    }
+    fragment.appendChild(div);
   }
+
+  display.replaceChildren(fragment);
+  syncScroll();
 }
 
-// --- DOM refs ---
-const editor = document.getElementById("editor");
-const qrContainer = document.getElementById("qr-container");
-const qrOverlay = document.getElementById("qr-overlay");
-const toast = document.getElementById("toast");
-const printUrl = document.getElementById("print-url");
-const DEFAULT_TITLE = document.title;
+// ---------------------------------------------------------------------------
+// Scroll sync
+//
+// The display layer never scrolls on its own (overflow: visible).
+// Instead, its top edge is shifted by the textarea's scrollTop so the
+// visible region always matches what the textarea is showing.
+// ---------------------------------------------------------------------------
 
-// --- Utilities ---
-const EMPTY_HTML = "<div><br></div>";
-const UNDO_LIMIT = 200;
-const URL_LIMIT = 60000;
-const DEFAULT_FILENAME = "TxtUrl";
-
-function updateUrlBar(length) {
-  const urlBar = document.getElementById("url-bar");
-  const ratio = Math.min(length / URL_LIMIT, 1);
-  urlBar.style.width = ratio * 100 + "%";
-  urlBar.style.background = length > URL_LIMIT ? "var(--error)" : "var(--text)";
+function syncScroll() {
+  display.style.transform = `translateY(${-editor.scrollTop}px)`;
 }
+
+editor.addEventListener("scroll", syncScroll);
+
+// ---------------------------------------------------------------------------
+// Utilities
+// ---------------------------------------------------------------------------
 
 function getRawText() {
-  return Array.from(editor.children, (d) => d.textContent).join("\n");
+  return editor.value;
 }
 
 function getFirstTitle(text) {
   for (const line of text.split("\n")) {
-    const match = line.match(/^\s*#+\s+(.*)$/);
-    if (!match) continue;
-    const title = match[1].replace(/\s*#+\s*$/, "").trim();
-    if (title) return title;
+    const m = line.match(/^#+\s+(.*\S)/);
+    if (m) return m[1].replace(/ #+\s*$/, "").trim();
   }
   return "";
 }
@@ -104,267 +160,76 @@ function sanitizeFilename(name) {
 }
 
 function getFilenameBase() {
-  const title = getFirstTitle(getRawText());
-  const slug = sanitizeFilename(title);
-  return slug || DEFAULT_FILENAME;
+  return sanitizeFilename(getFirstTitle(getRawText())) || DEFAULT_FILENAME;
 }
 
-function escapeHtml(str) {
-  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-
-function buildHtml(lines) {
-  return lines
-    .map((line) => `<div>${escapeHtml(line) || "<br>"}</div>`)
-    .join("");
-}
-
-function ancestorDiv(node) {
-  while (node && node.parentNode !== editor) node = node.parentNode;
-  return node ?? null;
+function updateUrlBar(length) {
+  const ratio = Math.min(length / URL_LIMIT, 1);
+  urlBar.style.width      = `${ratio * 100}%`;
+  urlBar.style.background = length > URL_LIMIT ? "var(--error)" : "var(--text)";
 }
 
 function showToast(msg, type) {
-  toast.textContent = msg;
+  toast.textContent  = msg;
   toast.dataset.type = type;
   toast.classList.add("show");
-  clearTimeout(toast._t);
-  toast._t = setTimeout(() => toast.classList.remove("show"), 2000);
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => toast.classList.remove("show"), 2000);
 }
 
 async function saveToHash() {
   const text = getRawText();
-  const urlBar = document.getElementById("url-bar");
-
   if (!text.trim()) {
     history.replaceState(null, "", location.pathname);
     printUrl.href = location.href;
     updateUrlBar(0);
     return true;
   }
-
   const compressed = await compress(text);
-  const fullUrl = location.origin + location.pathname + "#" + compressed;
+  const fullUrl    = `${location.origin}${location.pathname}#${compressed}`;
   updateUrlBar(fullUrl.length);
-
   if (fullUrl.length > URL_LIMIT) {
     showToast("Text too long to save in URL", "error");
     return false;
   }
-
-  history.replaceState(null, "", "#" + compressed);
+  history.replaceState(null, "", `#${compressed}`);
   printUrl.href = location.href;
   return true;
 }
 
+// ---------------------------------------------------------------------------
+// QR modal
+// ---------------------------------------------------------------------------
+
 function closeQr() {
   qrOverlay.classList.remove("open");
-  qrOverlay.addEventListener(
-    "transitionend",
-    () => {
-      qrContainer.innerHTML = "";
-    },
-    { once: true },
-  );
+  qrOverlay.addEventListener("transitionend", () => {
+    qrContainer.innerHTML = "";
+  }, { once: true });
 }
 
-// --- Cursor ---
-function saveCursor() {
-  const sel = window.getSelection();
-  if (!sel.rangeCount) return { divIdx: 0, offset: 0 };
-  const range = sel.getRangeAt(0);
-  const node = ancestorDiv(range.startContainer);
-  return {
-    divIdx: Math.max(0, Array.prototype.indexOf.call(editor.children, node)),
-    offset:
-      range.startContainer.nodeType === Node.TEXT_NODE ? range.startOffset : 0,
-  };
-}
+// ---------------------------------------------------------------------------
+// Editor — input and keyboard
+// ---------------------------------------------------------------------------
 
-function restoreCursor({ divIdx, offset }) {
-  const div = editor.children[divIdx] ?? editor.lastChild;
-  if (!div) return;
-  const r = document.createRange();
-  if (div.firstChild?.nodeType === Node.TEXT_NODE) {
-    r.setStart(div.firstChild, Math.min(offset, div.firstChild.length));
-  } else {
-    r.setStart(div, 0);
-  }
-  r.collapse(true);
-  const sel = window.getSelection();
-  sel.removeAllRanges();
-  sel.addRange(r);
-  editor.focus();
-}
+// Re-render display on every keystroke, paste, cut, undo, redo, etc.
+editor.addEventListener("input", renderDisplay);
 
-// --- Undo / Redo ---
-const undoStack = [
-  { html: editor.innerHTML, cursor: { divIdx: 0, offset: 0 } },
-];
-const redoStack = [];
-
-function pushUndo() {
-  const html = editor.innerHTML;
-  if (undoStack.at(-1)?.html === html) return;
-  if (undoStack.length >= UNDO_LIMIT) undoStack.shift();
-  undoStack.push({ html, cursor: saveCursor() });
-  redoStack.length = 0;
-}
-
-function applySnap(snap) {
-  editor.innerHTML = snap.html;
-  mdRender(editor);
-  restoreCursor(snap.cursor);
-}
-
-function applyUndo() {
-  if (undoStack.length <= 1) return;
-  redoStack.push(undoStack.pop());
-  applySnap(undoStack.at(-1));
-}
-
-function applyRedo() {
-  if (!redoStack.length) return;
-  undoStack.push(redoStack.pop());
-  applySnap(undoStack.at(-1));
-}
-
-// --- Scheduling ---
-let undoTimer = null;
-
-function scheduleCommit() {
-  clearTimeout(undoTimer);
-  undoTimer = setTimeout(pushUndo, 300);
-}
-
-// --- Paste ---
-function pasteLines(lines) {
-  const sel = window.getSelection();
-  if (!sel.rangeCount) return;
-  const range = sel.getRangeAt(0);
-  let startContainer = range.startContainer;
-  let startOffset = range.startOffset;
-
-  if (startContainer === editor) {
-    const child =
-      editor.children[Math.min(startOffset, editor.children.length - 1)];
-    if (child) {
-      const textNode = child.firstChild;
-      startContainer = textNode ?? child;
-      startOffset = textNode ? textNode.length : 0;
-    }
-  }
-
-  sel.deleteFromDocument();
-  const currentDiv = ancestorDiv(startContainer);
-  const divs = Array.from(editor.children);
-  const idx = Math.max(
-    0,
-    currentDiv ? divs.indexOf(currentDiv) : divs.length - 1,
-  );
-  const offset = startContainer.nodeType === Node.TEXT_NODE ? startOffset : 0;
-  const before = (currentDiv?.textContent ?? "").slice(0, offset);
-  const after = (currentDiv?.textContent ?? "").slice(offset);
-  const newLines = divs.slice(0, idx).map((d) => d.textContent);
-  lines.forEach((line, i) => newLines.push(i === 0 ? before + line : line));
-  newLines[newLines.length - 1] += after;
-  divs.slice(idx + 1).forEach((d) => newLines.push(d.textContent));
-  const cursorIdx = idx + lines.length - 1;
-  editor.innerHTML = buildHtml(newLines);
-  restoreCursor({
-    divIdx: cursorIdx,
-    offset: newLines[cursorIdx].length - after.length,
-  });
-  mdRender(editor);
-  scheduleCommit();
-}
-
-// --- Editor events ---
+// Tab inserts four spaces instead of moving focus.
 editor.addEventListener("keydown", (e) => {
-  const ctrl = e.ctrlKey || e.metaKey;
-  const key = e.key.toLowerCase();
-
-  if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
-    const sel = window.getSelection();
-    if (sel.rangeCount && !sel.getRangeAt(0).collapsed) {
-      requestAnimationFrame(() => {
-        if (!editor.children.length) return;
-        if (e.key === "ArrowLeft") {
-          restoreCursor({ divIdx: 0, offset: 0 });
-        } else {
-          const last = editor.children.length - 1;
-          restoreCursor({
-            divIdx: last,
-            offset: editor.children[last].textContent.length,
-          });
-        }
-      });
-    }
-    return;
-  }
-
-  if (ctrl && key === "z" && !e.shiftKey) {
-    e.preventDefault();
-    applyUndo();
-    return;
-  }
-  if (ctrl && (key === "y" || (key === "z" && e.shiftKey))) {
-    e.preventDefault();
-    applyRedo();
-    return;
-  }
-
-  if (e.key === "Tab") {
-    e.preventDefault();
-    pasteLines(["    "]);
-    return;
-  }
-
-  if (e.key !== "Backspace" && e.key !== "Delete") return;
-  if (editor.children.length > 1) return;
-  if (!editor.firstChild.textContent) {
-    e.preventDefault();
-    return;
-  }
-  const sel = window.getSelection();
-  if (!sel.rangeCount) return;
-  const range = sel.getRangeAt(0);
-  const atStart =
-    range.collapsed &&
-    range.startOffset === 0 &&
-    (range.startContainer === editor.firstChild ||
-      range.startContainer === editor.firstChild?.firstChild);
-  if (atStart) e.preventDefault();
-});
-
-editor.addEventListener("input", () => {
-  requestAnimationFrame(() => {
-    Array.from(editor.childNodes).forEach((node) => {
-      if (node.nodeType !== Node.ELEMENT_NODE || node.nodeName !== "DIV")
-        editor.removeChild(node);
-    });
-    if (
-      !editor.children.length ||
-      (editor.children.length === 1 && !editor.firstChild.textContent)
-    ) {
-      editor.innerHTML = EMPTY_HTML;
-      restoreCursor({ divIdx: 0, offset: 0 });
-    }
-    mdRender(editor);
-    scheduleCommit();
-  });
-});
-
-editor.addEventListener("paste", (e) => {
+  if (e.key !== "Tab") return;
   e.preventDefault();
-  pasteLines(
-    e.clipboardData
-      .getData("text/plain")
-      .replace(/\r\n?/g, "\n")
-      .replace(/\t/g, "    ")
-      .split("\n"),
-  );
+  const start = editor.selectionStart;
+  const end   = editor.selectionEnd;
+  editor.value =
+    editor.value.slice(0, start) + "    " + editor.value.slice(end);
+  editor.selectionStart = editor.selectionEnd = start + 4;
+  renderDisplay();
 });
+
+// ---------------------------------------------------------------------------
+// Print
+// ---------------------------------------------------------------------------
 
 window.addEventListener("beforeprint", () => {
   saveToHash();
@@ -375,49 +240,57 @@ window.addEventListener("afterprint", () => {
   document.title = DEFAULT_TITLE;
 });
 
-// --- Load from hash ---
+// ---------------------------------------------------------------------------
+// Load / init
+// ---------------------------------------------------------------------------
+
+function loadText(text) {
+  editor.value = text.replace(/\r\n?/g, "\n");
+  renderDisplay();
+}
+
 const hash = location.hash.slice(1);
 if (hash) {
   decompress(hash)
     .then((text) => {
-      editor.innerHTML = buildHtml(text.replace(/\r\n?/g, "\n").split("\n"));
-      mdRender(editor);
-      undoStack[0] = {
-        html: editor.innerHTML,
-        cursor: { divIdx: 0, offset: 0 },
-      };
-      const last = editor.children.length - 1;
-      restoreCursor({
-        divIdx: last,
-        offset: editor.children[last].textContent.length,
-      });
+      loadText(text);
       updateUrlBar(location.href.length);
+      editor.focus();
+      editor.setSelectionRange(editor.value.length, editor.value.length);
     })
     .catch(() => {
       history.replaceState(null, "", location.pathname);
-      editor.innerHTML = EMPTY_HTML;
+      loadText("");
       showToast("Invalid URL", "error");
       editor.focus();
     });
 } else {
+  renderDisplay();
   editor.focus();
 }
 
-// --- Buttons ---
+// ---------------------------------------------------------------------------
+// Toolbar buttons
+// ---------------------------------------------------------------------------
+
 document.getElementById("btn-save").addEventListener("click", async () => {
   if (await saveToHash()) showToast("File saved", "info");
 });
 
 document.getElementById("btn-trash").addEventListener("click", () => {
-  editor.innerHTML = EMPTY_HTML;
-  scheduleCommit();
+  loadText("");
+  history.replaceState(null, "", location.pathname);
+  printUrl.href = location.href;
+  updateUrlBar(0);
   editor.focus();
 });
 
 document.getElementById("btn-download").addEventListener("click", async () => {
   await saveToHash();
   const a = Object.assign(document.createElement("a"), {
-    href: URL.createObjectURL(new Blob([getRawText()], { type: "text/plain" })),
+    href:     URL.createObjectURL(
+      new Blob([getRawText()], { type: "text/plain" }),
+    ),
     download: `${getFilenameBase()}.md`,
   });
   a.click();
@@ -457,8 +330,8 @@ document.getElementById("btn-qr").addEventListener("click", async () => {
 });
 
 document.getElementById("qr-download").addEventListener("click", () => {
-  const svg = qrContainer.querySelector("svg");
-  const url = URL.createObjectURL(
+  const svg    = qrContainer.querySelector("svg");
+  const svgUrl = URL.createObjectURL(
     new Blob([new XMLSerializer().serializeToString(svg)], {
       type: "image/svg+xml;charset=utf-8",
     }),
@@ -466,42 +339,51 @@ document.getElementById("qr-download").addEventListener("click", () => {
   const img = new Image();
   img.onload = () => {
     const canvas = Object.assign(document.createElement("canvas"), {
-      width: img.width,
+      width:  img.width,
       height: img.height,
     });
     canvas.getContext("2d").drawImage(img, 0, 0);
     canvas.toBlob((blob) => {
       const a = Object.assign(document.createElement("a"), {
-        href: URL.createObjectURL(blob),
+        href:     URL.createObjectURL(blob),
         download: "qrcode.png",
       });
       a.click();
       URL.revokeObjectURL(a.href);
-      URL.revokeObjectURL(url);
+      URL.revokeObjectURL(svgUrl);
     });
   };
-  img.src = url;
+  img.src = svgUrl;
 });
 
 document.getElementById("qr-close").addEventListener("click", closeQr);
+
 qrOverlay.addEventListener("click", (e) => {
   if (e.target === qrOverlay) closeQr();
 });
 
+// ---------------------------------------------------------------------------
+// Global keyboard shortcuts
+// ---------------------------------------------------------------------------
+
 document.addEventListener("keydown", (e) => {
-  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+  const ctrl = e.ctrlKey || e.metaKey;
+  if (ctrl && e.key.toLowerCase() === "s") {
     e.preventDefault();
     document.getElementById("btn-save").click();
   }
-  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "p") {
+  if (ctrl && e.key.toLowerCase() === "p") {
     e.preventDefault();
     document.getElementById("btn-print").click();
   }
   if (e.key === "Escape") closeQr();
 });
 
+// ---------------------------------------------------------------------------
+// Service worker
+// ---------------------------------------------------------------------------
+
 if ("serviceWorker" in navigator) {
-  const basePath = window.location.pathname.replace(/\/[^/]*$/, "/");
-  const swPath = basePath + "service-worker.js";
-  navigator.serviceWorker.register(swPath);
+  const base = window.location.pathname.replace(/\/[^/]*$/, "/");
+  navigator.serviceWorker.register(`${base}service-worker.js`);
 }
