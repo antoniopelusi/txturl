@@ -381,20 +381,9 @@ footer small {
    position: absolute so it occupies zero layout space and overlaps the
    leading ">" character without shifting the caret. */
 .md-quote {
-    position: relative;
     color: var(--text-dim);
     background-color: var(--bg-box);
-}
-
-.md-quote::before {
-    content: "";
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 1ch;
-    background: var(--text-faint);
-    opacity: 0.35;
+    font-style: italic;
 }
 
 /* Code block body */
